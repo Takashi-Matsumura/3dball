@@ -410,7 +410,7 @@ export default function Ball() {
             <input
               type="range"
               min={2}
-              max={40}
+              max={20}
               step={1}
               value={patternConfig.scale}
               onChange={(e) => setPatternConfig((c) => ({ ...c, scale: Number(e.target.value) }))}
