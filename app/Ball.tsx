@@ -281,6 +281,7 @@ export default function Ball() {
   const [gridPos, setGridPos] = useState({ col: 1, row: 1 });
   const [isAnimating, setIsAnimating] = useState(false);
   const [is2D, setIs2D] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [patternConfig, setPatternConfig] = useState<PatternConfig>({
     pattern: 0,
     color1: "#4488ff",
@@ -358,74 +359,89 @@ export default function Ball() {
 
   return (
     <div className="relative h-screen w-screen">
-      {/* Controls */}
-      <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 w-56">
+      {/* Settings toggle */}
+      <div className="absolute top-4 right-4 z-10">
         <button
-          onClick={() => setIs2D((v) => !v)}
-          className="rounded-lg bg-white/90 px-4 py-2 text-sm font-medium text-black shadow-md backdrop-blur transition hover:bg-white"
+          onClick={() => setShowSettings((v) => !v)}
+          className="rounded-lg bg-white/90 p-2 shadow-md backdrop-blur transition hover:bg-white"
+          title="設定"
         >
-          {is2D ? "3D モード" : "2D モード"}
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-black/70">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
         </button>
 
-        {/* Pattern panel */}
-        <div className="rounded-lg bg-white/90 p-3 shadow-md backdrop-blur flex flex-col gap-2">
-          {/* Pattern selector */}
-          <div className="flex gap-1">
-            {PATTERN_NAMES.map((name, i) => (
-              <button
-                key={name}
-                onClick={() => setPatternConfig((c) => ({ ...c, pattern: i }))}
-                className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition ${
-                  i === patternConfig.pattern
-                    ? "bg-black text-white"
-                    : "bg-gray-100 text-black/70 hover:bg-gray-200"
-                }`}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
+        {showSettings && (
+          <div className="mt-2 flex flex-col gap-2 w-56">
+            <button
+              onClick={() => setIs2D((v) => !v)}
+              className="rounded-lg bg-white/90 px-4 py-2 text-sm font-medium text-black shadow-md backdrop-blur transition hover:bg-white"
+            >
+              {is2D ? "3D モード" : "2D モード"}
+            </button>
 
-          {/* Color pickers */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-black/60 w-10">色 1</label>
-            <input
-              type="color"
-              value={patternConfig.color1}
-              onChange={(e) => setPatternConfig((c) => ({ ...c, color1: e.target.value }))}
-              className="w-8 h-8 rounded border border-gray-300 cursor-pointer"
-            />
-            <label className="text-xs text-black/60 w-10 ml-2">色 2</label>
-            <input
-              type="color"
-              value={patternConfig.color2}
-              onChange={(e) => setPatternConfig((c) => ({ ...c, color2: e.target.value }))}
-              className="w-8 h-8 rounded border border-gray-300 cursor-pointer"
-            />
-          </div>
+            {/* Pattern panel */}
+            <div className="rounded-lg bg-white/90 p-3 shadow-md backdrop-blur flex flex-col gap-2">
+              {/* Pattern selector */}
+              <div className="flex gap-1">
+                {PATTERN_NAMES.map((name, i) => (
+                  <button
+                    key={name}
+                    onClick={() => setPatternConfig((c) => ({ ...c, pattern: i }))}
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition ${
+                      i === patternConfig.pattern
+                        ? "bg-black text-white"
+                        : "bg-gray-100 text-black/70 hover:bg-gray-200"
+                    }`}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
 
-          {/* Scale slider */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-black/60 w-10">幅</label>
-            <input
-              type="range"
-              min={2}
-              max={20}
-              step={1}
-              value={patternConfig.scale}
-              onChange={(e) => setPatternConfig((c) => ({ ...c, scale: Number(e.target.value) }))}
-              className="flex-1"
-            />
-            <span className="text-xs text-black/60 w-6 text-right">{patternConfig.scale}</span>
-          </div>
-        </div>
+              {/* Color pickers */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-black/60 w-10">色 1</label>
+                <input
+                  type="color"
+                  value={patternConfig.color1}
+                  onChange={(e) => setPatternConfig((c) => ({ ...c, color1: e.target.value }))}
+                  className="w-8 h-8 rounded border border-gray-300 cursor-pointer"
+                />
+                <label className="text-xs text-black/60 w-10 ml-2">色 2</label>
+                <input
+                  type="color"
+                  value={patternConfig.color2}
+                  onChange={(e) => setPatternConfig((c) => ({ ...c, color2: e.target.value }))}
+                  className="w-8 h-8 rounded border border-gray-300 cursor-pointer"
+                />
+              </div>
 
-        <a
-          href="/nfc"
-          className="rounded-lg bg-white/90 px-4 py-2 text-sm font-medium text-black shadow-md backdrop-blur transition hover:bg-white text-center"
-        >
-          NFC カード登録
-        </a>
+              {/* Scale slider */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-black/60 w-10">幅</label>
+                <input
+                  type="range"
+                  min={2}
+                  max={20}
+                  step={1}
+                  value={patternConfig.scale}
+                  onChange={(e) => setPatternConfig((c) => ({ ...c, scale: Number(e.target.value) }))}
+                  className="flex-1"
+                />
+                <span className="text-xs text-black/60 w-6 text-right">{patternConfig.scale}</span>
+              </div>
+            </div>
+
+            <a
+              href="/nfc"
+              className="rounded-lg bg-white/90 px-4 py-2 text-sm font-medium text-black shadow-md backdrop-blur transition hover:bg-white text-center"
+            >
+              NFC カード登録
+            </a>
+          </div>
+        )}
       </div>
 
       {/* NFC status */}
