@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useI18n } from "@/lib/i18n";
 
 interface CardDef {
   id: string;
-  label: string;
+  labelKey: "dirUp" | "dirDown" | "dirLeft" | "dirRight";
   icon: string;
   bgColor: string;
   borderColor: string;
@@ -14,10 +15,10 @@ interface CardDef {
 }
 
 const DIRECTION_CARDS: CardDef[] = [
-  { id: "UP",    label: "上 (Up)",    icon: "⬆", bgColor: "bg-blue-100",   borderColor: "border-blue-400",   hoverColor: "hover:bg-blue-200",   textColor: "text-blue-700" },
-  { id: "DOWN",  label: "下 (Down)",  icon: "⬇", bgColor: "bg-orange-100", borderColor: "border-orange-400", hoverColor: "hover:bg-orange-200", textColor: "text-orange-700" },
-  { id: "LEFT",  label: "左 (Left)",  icon: "⬅", bgColor: "bg-purple-100", borderColor: "border-purple-400", hoverColor: "hover:bg-purple-200", textColor: "text-purple-700" },
-  { id: "RIGHT", label: "右 (Right)", icon: "➡", bgColor: "bg-green-100",  borderColor: "border-green-400",  hoverColor: "hover:bg-green-200",  textColor: "text-green-700" },
+  { id: "UP",    labelKey: "dirUp",    icon: "⬆", bgColor: "bg-blue-100",   borderColor: "border-blue-400",   hoverColor: "hover:bg-blue-200",   textColor: "text-blue-700" },
+  { id: "DOWN",  labelKey: "dirDown",  icon: "⬇", bgColor: "bg-orange-100", borderColor: "border-orange-400", hoverColor: "hover:bg-orange-200", textColor: "text-orange-700" },
+  { id: "LEFT",  labelKey: "dirLeft",  icon: "⬅", bgColor: "bg-purple-100", borderColor: "border-purple-400", hoverColor: "hover:bg-purple-200", textColor: "text-purple-700" },
+  { id: "RIGHT", labelKey: "dirRight", icon: "➡", bgColor: "bg-green-100",  borderColor: "border-green-400",  hoverColor: "hover:bg-green-200",  textColor: "text-green-700" },
 ];
 
 type RegisterStatus = "idle" | "waiting" | "success" | "error";
@@ -28,6 +29,7 @@ interface RegisteredCard {
 }
 
 export default function NfcWriter() {
+  const { t } = useI18n();
   const [selected, setSelected] = useState<CardDef | null>(null);
   const [status, setStatus] = useState<RegisterStatus>("idle");
   const [message, setMessage] = useState("");
@@ -73,7 +75,7 @@ export default function NfcWriter() {
 
     try {
       setStatus("waiting");
-      setMessage("カードをリーダーにかざしてください...");
+      setMessage(t("waitingForCard"));
 
       const res = await fetch("/api/nfc", {
         method: "POST",
@@ -86,17 +88,17 @@ export default function NfcWriter() {
 
       if (data.success) {
         setStatus("success");
-        setMessage(`「${selected.label}」として登録しました！ (UID: ${data.uid})`);
+        setMessage(`${t(selected.labelKey)} ${t("registered")} (UID: ${data.uid})`);
       } else {
         setStatus("error");
-        setMessage(data.error || "登録に失敗しました。");
+        setMessage(data.error || t("registerFailed"));
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       setStatus("error");
-      setMessage(`通信エラー: ${err instanceof Error ? err.message : String(err)}`);
+      setMessage(`${t("commError")}${err instanceof Error ? err.message : String(err)}`);
     }
-  }, [selected]);
+  }, [selected, t]);
 
   const handleCancel = useCallback(async () => {
     if (abortRef.current) abortRef.current.abort();
@@ -109,10 +111,10 @@ export default function NfcWriter() {
     setMessage("");
   }, []);
 
-  const cardLabel = (cardId: string) => {
+  const cardLabel = useCallback((cardId: string) => {
     const card = DIRECTION_CARDS.find((c) => c.id === cardId);
-    return card ? `${card.icon} ${card.label}` : cardId;
-  };
+    return card ? `${card.icon} ${t(card.labelKey)}` : cardId;
+  }, [t]);
 
   return (
     <div className="min-h-screen bg-stone-50 p-6">
@@ -123,10 +125,10 @@ export default function NfcWriter() {
             href="/"
             className="px-4 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-sm text-gray-700"
           >
-            ← もどる
+            {t("goBack")}
           </Link>
           <h1 className="text-2xl font-bold text-gray-800">
-            NFC カード登録
+            {t("nfcCardSetup")}
           </h1>
         </div>
 
@@ -139,15 +141,15 @@ export default function NfcWriter() {
         >
           <span className={`inline-block w-3 h-3 rounded-full ${readerConnected ? "bg-green-500 animate-pulse" : "bg-red-400"}`} />
           {readerConnected
-            ? `リーダー接続中: ${readerName}`
-            : "NFCリーダーが見つかりません — USBリーダーを接続してください"
+            ? `${t("readerConnected")}${readerName}`
+            : t("readerNotFound")
           }
         </div>
 
         {/* Registered cards */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6 shadow-sm">
           <h2 className="text-lg font-bold text-gray-700 mb-4">
-            登録済みカード
+            {t("registeredCards")}
           </h2>
           {registeredCards.length > 0 ? (
             <div className="grid grid-cols-2 gap-3">
@@ -163,15 +165,15 @@ export default function NfcWriter() {
             </div>
           ) : (
             <p className="text-gray-400 text-center py-4">
-              まだカードが登録されていません
+              {t("noCardsYet")}
             </p>
           )}
         </div>
 
-        {/* カード登録 */}
+        {/* Card registration */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6 shadow-sm">
           <h2 className="text-lg font-bold text-gray-700 mb-4">
-            方向を選んでカードをかざして登録
+            {t("selectDirAndTap")}
           </h2>
 
           <div className="flex flex-wrap gap-4 justify-center">
@@ -187,7 +189,7 @@ export default function NfcWriter() {
                 `}
               >
                 <span className="text-3xl mb-1">{card.icon}</span>
-                <span className={card.textColor}>{card.label}</span>
+                <span className={card.textColor}>{t(card.labelKey)}</span>
               </button>
             ))}
           </div>
@@ -206,7 +208,7 @@ export default function NfcWriter() {
                     disabled:opacity-60 disabled:cursor-not-allowed
                   `}
                 >
-                  {status === "waiting" ? "カードを待っています..." : `「${selected.label}」を登録する`}
+                  {status === "waiting" ? t("waitingCard") : `${t(selected.labelKey)} — ${t("registerBtn")}`}
                 </button>
 
                 {status === "waiting" && (
@@ -214,7 +216,7 @@ export default function NfcWriter() {
                     onClick={handleCancel}
                     className="px-4 py-3 rounded-xl font-bold text-sm bg-gray-200 text-gray-600 hover:bg-gray-300 transition-all"
                   >
-                    キャンセル
+                    {t("cancel")}
                   </button>
                 )}
               </div>

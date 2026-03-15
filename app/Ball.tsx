@@ -3,11 +3,15 @@
 import { useRef, useMemo, useEffect, useState, useCallback } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { useI18n, Locale } from "@/lib/i18n";
 
 const CELL_SIZE = 1.2;
 const BALL_RADIUS = 0.4;
 
-const PATTERN_NAMES = ["チェッカー", "ストライプ"] as const;
+const COLOR_PRESETS = [
+  "#ff0000", "#ff8800", "#ffcc00", "#00cc00", "#0088ff",
+  "#4488ff", "#8844ff", "#ff44aa", "#ffffff", "#000000",
+];
 
 interface PatternConfig {
   pattern: number;
@@ -278,6 +282,7 @@ function moveGrid(
 }
 
 export default function Ball() {
+  const { locale, setLocale, t } = useI18n();
   const [gridPos, setGridPos] = useState({ col: 1, row: 1 });
   const [isAnimating, setIsAnimating] = useState(false);
   const [is2D, setIs2D] = useState(false);
@@ -436,7 +441,7 @@ export default function Ball() {
           <button
             onClick={() => setProgMode(true)}
             className="rounded-lg bg-white/95 p-2 shadow-md backdrop-blur border border-gray-200 transition hover:bg-white text-black/40 hover:text-black/70"
-            title="プログラミング"
+            title={t("programming")}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
               <polyline points="16 18 22 12 16 6" />
@@ -445,7 +450,7 @@ export default function Ball() {
           </button>
         ) : (
           <div className="w-52 flex items-center bg-white/95 rounded-lg shadow-md backdrop-blur border border-gray-200 overflow-hidden">
-            <span className="flex-1 px-3 py-2 text-sm font-bold text-gray-700">プログラミング</span>
+            <span className="flex-1 px-3 py-2 text-sm font-bold text-gray-700">{t("programming")}</span>
             <button
               onClick={() => {
                 setProgMode(false);
@@ -454,7 +459,7 @@ export default function Ball() {
                 setProgRunning(false);
               }}
               className="px-3 py-2 transition border-l border-gray-200 bg-yellow-400 hover:bg-yellow-300 text-black/70"
-              title="閉じる"
+              title={t("close")}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -483,10 +488,8 @@ export default function Ball() {
             {/* Program steps */}
             <div ref={progStepsRef} className="flex-1 overflow-y-auto min-h-[120px] px-2 py-2 flex flex-col gap-1">
               {program.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-8">
-                  カードをかざして
-                  <br />
-                  命令を追加
+                <p className="text-xs text-gray-400 text-center py-8 whitespace-pre-line">
+                  {t("scanCardToAdd")}
                 </p>
               ) : (
                 program.map((dir, i) => (
@@ -524,7 +527,7 @@ export default function Ball() {
                   : "bg-green-600 hover:bg-green-700"
               }`}
             >
-              {progRunning ? "実行中..." : "Run"}
+              {progRunning ? t("running") : t("run")}
             </button>
           </div>
         )}
@@ -537,7 +540,7 @@ export default function Ball() {
           <button
             onClick={() => setShowSettings(true)}
             className="rounded-lg bg-white/95 p-2 shadow-md backdrop-blur border border-gray-200 transition hover:bg-white text-black/40 hover:text-black/70"
-            title="設定"
+            title={t("settings")}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
               <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
@@ -546,11 +549,11 @@ export default function Ball() {
           </button>
         ) : (
           <div className="w-52 flex items-center bg-white/95 rounded-lg shadow-md backdrop-blur border border-gray-200 overflow-hidden">
-            <span className="flex-1 px-3 py-2 text-sm font-bold text-gray-700">設定</span>
+            <span className="flex-1 px-3 py-2 text-sm font-bold text-gray-700">{t("settings")}</span>
             <button
               onClick={() => setShowSettings(false)}
               className="px-3 py-2 transition border-l border-gray-200 bg-gray-200 hover:bg-gray-300 text-black/70"
-              title="閉じる"
+              title={t("close")}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -567,14 +570,14 @@ export default function Ball() {
               onClick={() => setIs2D((v) => !v)}
               className="rounded-lg bg-white/95 px-4 py-2 text-sm font-medium text-black shadow-md backdrop-blur border border-gray-200 transition hover:bg-white"
             >
-              {is2D ? "3D モード" : "2D モード"}
+              {is2D ? t("mode3D") : t("mode2D")}
             </button>
 
             <div className="rounded-lg bg-white/95 p-3 shadow-md backdrop-blur border border-gray-200 flex flex-col gap-2">
               <div className="flex gap-1">
-                {PATTERN_NAMES.map((name, i) => (
+                {([["checker", 0], ["stripe", 1]] as const).map(([key, i]) => (
                   <button
-                    key={name}
+                    key={key}
                     onClick={() => setPatternConfig((c) => ({ ...c, pattern: i }))}
                     className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition ${
                       i === patternConfig.pattern
@@ -582,30 +585,31 @@ export default function Ball() {
                         : "bg-gray-100 text-black/70 hover:bg-gray-200"
                     }`}
                   >
-                    {name}
+                    {t(key)}
                   </button>
                 ))}
               </div>
 
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-black/60 w-10">色 1</label>
-                <input
-                  type="color"
-                  value={patternConfig.color1}
-                  onChange={(e) => setPatternConfig((c) => ({ ...c, color1: e.target.value }))}
-                  className="w-8 h-8 rounded border border-gray-300 cursor-pointer"
-                />
-                <label className="text-xs text-black/60 w-10 ml-2">色 2</label>
-                <input
-                  type="color"
-                  value={patternConfig.color2}
-                  onChange={(e) => setPatternConfig((c) => ({ ...c, color2: e.target.value }))}
-                  className="w-8 h-8 rounded border border-gray-300 cursor-pointer"
-                />
-              </div>
+              {[["color1", patternConfig.color1] as const, ["color2", patternConfig.color2] as const].map(([key, value]) => (
+                <div key={key}>
+                  <label className="text-xs text-black/60">{t(key)}</label>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {COLOR_PRESETS.map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => setPatternConfig((prev) => ({ ...prev, [key]: c }))}
+                        className={`w-6 h-6 rounded-md border-2 transition ${
+                          value === c ? "border-black scale-110" : "border-transparent hover:border-gray-400"
+                        }`}
+                        style={{ backgroundColor: c }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
 
               <div className="flex items-center gap-2">
-                <label className="text-xs text-black/60 w-10">幅</label>
+                <label className="text-xs text-black/60 w-10">{t("width")}</label>
                 <input
                   type="range"
                   min={2}
@@ -623,8 +627,27 @@ export default function Ball() {
               href="/nfc"
               className="rounded-lg bg-white/95 px-4 py-2 text-sm font-medium text-black shadow-md backdrop-blur border border-gray-200 transition hover:bg-white text-center"
             >
-              NFC カード登録
+              {t("nfcCardRegister")}
             </a>
+
+            <div className="rounded-lg bg-white/95 p-3 shadow-md backdrop-blur border border-gray-200 flex flex-col gap-1">
+              <label className="text-xs text-black/60 mb-1">{t("language")}</label>
+              <div className="flex gap-1">
+                {(["ja", "en"] as Locale[]).map((lang) => (
+                  <button
+                    key={lang}
+                    onClick={() => setLocale(lang)}
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition ${
+                      locale === lang
+                        ? "bg-black text-white"
+                        : "bg-gray-100 text-black/70 hover:bg-gray-200"
+                    }`}
+                  >
+                    {lang === "ja" ? "日本語" : "English"}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -637,7 +660,7 @@ export default function Ball() {
               nfcConnected ? "bg-green-400 animate-pulse" : "bg-gray-500"
             }`}
           />
-          {nfcConnected ? "NFC 接続中" : "NFC 未接続"}
+          {nfcConnected ? t("nfcConnected") : t("nfcDisconnected")}
         </div>
       </div>
 
