@@ -292,8 +292,68 @@ export default function Ball() {
   const [nfcFlash, setNfcFlash] = useState<string | null>(null);
   const isAnimatingRef = useRef(false);
 
+  // Programming mode
+  const [progMode, setProgMode] = useState(false);
+  const [program, setProgram] = useState<string[]>([]);
+  const [progRunning, setProgRunning] = useState(false);
+  const [progIndex, setProgIndex] = useState(-1);
+  const progModeRef = useRef(false);
+  const progStepsRef = useRef<HTMLDivElement>(null);
+  const progRunningRef = useRef(false);
+
+  useEffect(() => { progModeRef.current = progMode; }, [progMode]);
+  useEffect(() => { progRunningRef.current = progRunning; }, [progRunning]);
+
+  // Auto-scroll to highlighted step
+  useEffect(() => {
+    if (progIndex < 0 || !progStepsRef.current) return;
+    const el = progStepsRef.current.children[progIndex] as HTMLElement | undefined;
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [progIndex]);
+
   // Keep ref in sync for NFC polling callback
   useEffect(() => { isAnimatingRef.current = isAnimating; }, [isAnimating]);
+
+  // Run program step by step
+  const animDoneResolveRef = useRef<(() => void) | null>(null);
+
+  const runProgram = useCallback(async () => {
+    if (program.length === 0) return;
+    setProgRunning(true);
+    // Reset ball to center
+    setGridPos({ col: 1, row: 1 });
+    setIsAnimating(false);
+    // Wait a frame for reset
+    await new Promise((r) => setTimeout(r, 100));
+
+    let currentPos = { col: 1, row: 1 };
+    for (let i = 0; i < program.length; i++) {
+      setProgIndex(i);
+      const direction = program[i];
+      const next = moveGrid(currentPos, direction);
+      if (next) {
+        currentPos = next;
+        setIsAnimating(true);
+        setGridPos(next);
+        // Wait for animation to complete
+        await new Promise<void>((resolve) => {
+          animDoneResolveRef.current = resolve;
+        });
+      }
+      // Small pause between steps
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    setProgIndex(-1);
+    setProgRunning(false);
+  }, [program]);
+
+  const handleAnimDone = useCallback(() => {
+    setIsAnimating(false);
+    if (animDoneResolveRef.current) {
+      animDoneResolveRef.current();
+      animDoneResolveRef.current = null;
+    }
+  }, []);
 
   // NFC polling
   useEffect(() => {
@@ -308,6 +368,17 @@ export default function Ball() {
         for (const ev of data.events) {
           const cardId = ev.cardId as string;
           if (!NFC_DIRECTIONS.includes(cardId as typeof NFC_DIRECTIONS[number])) continue;
+
+          // Programming mode: add to program instead of moving
+          if (progModeRef.current && !progRunningRef.current) {
+            setProgram((prev) => [...prev, cardId]);
+            setNfcFlash(cardId);
+            setTimeout(() => { if (!cancelled) setNfcFlash(null); }, 500);
+            continue;
+          }
+
+          // Normal mode: move ball directly
+          if (progModeRef.current) continue; // skip during run
           if (isAnimatingRef.current) continue;
 
           setGridPos((prev) => {
@@ -317,7 +388,6 @@ export default function Ball() {
             return next;
           });
 
-          // Flash notification
           setNfcFlash(cardId);
           setTimeout(() => { if (!cancelled) setNfcFlash(null); }, 1000);
         }
@@ -332,7 +402,7 @@ export default function Ball() {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (isAnimating) return;
+      if (progMode || isAnimating) return;
       const keyMap: Record<string, string> = {
         ArrowUp: "UP",
         ArrowDown: "DOWN",
@@ -349,7 +419,7 @@ export default function Ball() {
         return next;
       });
     },
-    [isAnimating]
+    [isAnimating, progMode]
   );
 
   useEffect(() => {
@@ -359,31 +429,148 @@ export default function Ball() {
 
   return (
     <div className="relative h-screen w-screen">
-      {/* Settings toggle */}
-      <div className="absolute top-4 right-4 z-10">
-        <button
-          onClick={() => setShowSettings((v) => !v)}
-          className="rounded-lg bg-white/90 p-2 shadow-md backdrop-blur transition hover:bg-white"
-          title="設定"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-black/70">
-            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
-        </button>
+      {/* Programming panel — left */}
+      <div className="absolute top-4 left-4 z-10">
+        {/* Panel header */}
+        {!progMode ? (
+          <button
+            onClick={() => setProgMode(true)}
+            className="rounded-lg bg-white/95 p-2 shadow-md backdrop-blur border border-gray-200 transition hover:bg-white text-black/40 hover:text-black/70"
+            title="プログラミング"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <polyline points="16 18 22 12 16 6" />
+              <polyline points="8 6 2 12 8 18" />
+            </svg>
+          </button>
+        ) : (
+          <div className="w-52 flex items-center bg-white/95 rounded-lg shadow-md backdrop-blur border border-gray-200 overflow-hidden">
+            <span className="flex-1 px-3 py-2 text-sm font-bold text-gray-700">プログラミング</span>
+            <button
+              onClick={() => {
+                setProgMode(false);
+                setProgram([]);
+                setProgIndex(-1);
+                setProgRunning(false);
+              }}
+              className="px-3 py-2 transition border-l border-gray-200 bg-yellow-400 hover:bg-yellow-300 text-black/70"
+              title="閉じる"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        )}
 
+        {/* Panel body */}
+        {progMode && (
+          <div className="mt-1 flex flex-col bg-white/95 rounded-lg shadow-md backdrop-blur border border-gray-200 overflow-hidden" style={{ maxHeight: "calc(100vh - 8rem)" }}>
+            {/* New button */}
+            <button
+              onClick={() => {
+                setProgram([]);
+                setProgIndex(-1);
+                setGridPos({ col: 1, row: 1 });
+              }}
+              disabled={progRunning}
+              className="px-4 py-2 text-sm font-bold text-white bg-gray-600 hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              New
+            </button>
+
+            {/* Program steps */}
+            <div ref={progStepsRef} className="flex-1 overflow-y-auto min-h-[120px] px-2 py-2 flex flex-col gap-1">
+              {program.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-8">
+                  カードをかざして
+                  <br />
+                  命令を追加
+                </p>
+              ) : (
+                program.map((dir, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                      progIndex === i
+                        ? "bg-yellow-300 scale-105"
+                        : "bg-gray-100"
+                    }`}
+                  >
+                    <span className="text-xs text-gray-400 w-4 text-right">{i + 1}</span>
+                    <span className="text-lg">{NFC_ICONS[dir]}</span>
+                    <span className="text-xs text-gray-600">{dir}</span>
+                    {!progRunning && (
+                      <button
+                        onClick={() => setProgram((p) => p.filter((_, j) => j !== i))}
+                        className="ml-auto text-gray-400 hover:text-red-500 text-xs"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Run button */}
+            <button
+              onClick={runProgram}
+              disabled={progRunning || program.length === 0}
+              className={`px-4 py-2 text-sm font-bold text-white transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                progRunning
+                  ? "bg-yellow-500 animate-pulse"
+                  : "bg-green-600 hover:bg-green-700"
+              }`}
+            >
+              {progRunning ? "実行中..." : "Run"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Settings panel — right */}
+      <div className="absolute top-4 right-4 z-10">
+        {/* Panel header */}
+        {!showSettings ? (
+          <button
+            onClick={() => setShowSettings(true)}
+            className="rounded-lg bg-white/95 p-2 shadow-md backdrop-blur border border-gray-200 transition hover:bg-white text-black/40 hover:text-black/70"
+            title="設定"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+        ) : (
+          <div className="w-52 flex items-center bg-white/95 rounded-lg shadow-md backdrop-blur border border-gray-200 overflow-hidden">
+            <span className="flex-1 px-3 py-2 text-sm font-bold text-gray-700">設定</span>
+            <button
+              onClick={() => setShowSettings(false)}
+              className="px-3 py-2 transition border-l border-gray-200 bg-gray-200 hover:bg-gray-300 text-black/70"
+              title="閉じる"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* Panel body */}
         {showSettings && (
-          <div className="mt-2 flex flex-col gap-2 w-56">
+          <div className="mt-1 w-52 flex flex-col gap-2">
             <button
               onClick={() => setIs2D((v) => !v)}
-              className="rounded-lg bg-white/90 px-4 py-2 text-sm font-medium text-black shadow-md backdrop-blur transition hover:bg-white"
+              className="rounded-lg bg-white/95 px-4 py-2 text-sm font-medium text-black shadow-md backdrop-blur border border-gray-200 transition hover:bg-white"
             >
               {is2D ? "3D モード" : "2D モード"}
             </button>
 
-            {/* Pattern panel */}
-            <div className="rounded-lg bg-white/90 p-3 shadow-md backdrop-blur flex flex-col gap-2">
-              {/* Pattern selector */}
+            <div className="rounded-lg bg-white/95 p-3 shadow-md backdrop-blur border border-gray-200 flex flex-col gap-2">
               <div className="flex gap-1">
                 {PATTERN_NAMES.map((name, i) => (
                   <button
@@ -400,7 +587,6 @@ export default function Ball() {
                 ))}
               </div>
 
-              {/* Color pickers */}
               <div className="flex items-center gap-2">
                 <label className="text-xs text-black/60 w-10">色 1</label>
                 <input
@@ -418,7 +604,6 @@ export default function Ball() {
                 />
               </div>
 
-              {/* Scale slider */}
               <div className="flex items-center gap-2">
                 <label className="text-xs text-black/60 w-10">幅</label>
                 <input
@@ -436,7 +621,7 @@ export default function Ball() {
 
             <a
               href="/nfc"
-              className="rounded-lg bg-white/90 px-4 py-2 text-sm font-medium text-black shadow-md backdrop-blur transition hover:bg-white text-center"
+              className="rounded-lg bg-white/95 px-4 py-2 text-sm font-medium text-black shadow-md backdrop-blur border border-gray-200 transition hover:bg-white text-center"
             >
               NFC カード登録
             </a>
@@ -444,18 +629,12 @@ export default function Ball() {
         )}
       </div>
 
-      {/* NFC status */}
-      <div className="absolute top-4 left-4 z-10">
-        <div
-          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium shadow-md backdrop-blur ${
-            nfcConnected
-              ? "bg-green-500/80 text-white"
-              : "bg-white/50 text-black/50"
-          }`}
-        >
+      {/* Footer — NFC status */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center px-4 py-2 bg-black/50 backdrop-blur">
+        <div className="flex items-center gap-2 text-xs font-medium text-white/80">
           <span
             className={`inline-block w-2 h-2 rounded-full ${
-              nfcConnected ? "bg-white animate-pulse" : "bg-gray-400"
+              nfcConnected ? "bg-green-400 animate-pulse" : "bg-gray-500"
             }`}
           />
           {nfcConnected ? "NFC 接続中" : "NFC 未接続"}
@@ -497,7 +676,7 @@ export default function Ball() {
         <Sphere
           gridCol={gridPos.col}
           gridRow={gridPos.row}
-          onAnimDone={() => setIsAnimating(false)}
+          onAnimDone={handleAnimDone}
           patternConfig={patternConfig}
         />
       </Canvas>
