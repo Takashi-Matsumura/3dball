@@ -448,10 +448,10 @@ export default function Ball() {
 
       {/* NFC flash */}
       {nfcFlash && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
-          <div className="rounded-2xl bg-white/90 px-8 py-6 shadow-xl backdrop-blur text-center animate-bounce">
-            <div className="text-5xl mb-1">{NFC_ICONS[nfcFlash]}</div>
-            <div className="text-sm font-bold text-gray-700">{nfcFlash}</div>
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+          <div className="rounded-xl bg-white/90 px-4 py-3 shadow-xl backdrop-blur text-center animate-bounce">
+            <div className="text-2xl">{NFC_ICONS[nfcFlash]}</div>
+            <div className="text-xs font-bold text-gray-700">{nfcFlash}</div>
           </div>
         </div>
       )}

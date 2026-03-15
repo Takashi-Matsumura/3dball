@@ -1,21 +1,32 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NFC } from "nfc-pcsc";
+import { loadCards, upsertCard, deleteCard } from "./db";
 
-// ---- UID-based card mapping ----
-// Maps card UID → direction (e.g., "UP", "DOWN", "LEFT", "RIGHT")
-const uidMap: Map<string, string> = new Map();
+// ---- UID-based card mapping (backed by SQLite) ----
+// In-memory cache loaded from DB at startup
+let uidMap: Map<string, string> | null = null;
+
+function getUidMap(): Map<string, string> {
+  if (!uidMap) {
+    uidMap = loadCards();
+    console.log(`[NFC] Loaded ${uidMap.size} card(s) from database`);
+  }
+  return uidMap;
+}
 
 export function registerCard(uid: string, cardId: string): void {
-  uidMap.set(uid, cardId);
+  getUidMap().set(uid, cardId);
+  upsertCard(uid, cardId);
   console.log(`[NFC] Registered UID=${uid} → ${cardId}`);
 }
 
 export function getRegisteredCards(): Array<{ uid: string; cardId: string }> {
-  return Array.from(uidMap.entries()).map(([uid, cardId]) => ({ uid, cardId }));
+  return Array.from(getUidMap().entries()).map(([uid, cardId]) => ({ uid, cardId }));
 }
 
 export function removeCard(uid: string): void {
-  uidMap.delete(uid);
+  getUidMap().delete(uid);
+  deleteCard(uid);
 }
 
 // ---- Singleton NFC manager ----
@@ -66,7 +77,7 @@ function ensureNfc() {
       if (card.uid === lastSeenUid) return;
       lastSeenUid = card.uid;
 
-      const cardId = uidMap.get(card.uid);
+      const cardId = getUidMap().get(card.uid);
       if (cardId) {
         console.log(`[NFC] Matched UID=${card.uid} → ${cardId}`);
         readEvents.push({ cardId, uid: card.uid, timestamp: Date.now() });

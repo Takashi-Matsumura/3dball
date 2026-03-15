@@ -168,10 +168,10 @@ export default function NfcWriter() {
           )}
         </div>
 
-        {/* Step 1: Select direction */}
+        {/* カード登録 */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6 shadow-sm">
           <h2 className="text-lg font-bold text-gray-700 mb-4">
-            1. 方向を選択
+            方向を選んでカードをかざして登録
           </h2>
 
           <div className="flex flex-wrap gap-4 justify-center">
@@ -179,9 +179,11 @@ export default function NfcWriter() {
               <button
                 key={card.id}
                 onClick={() => handleSelect(card)}
+                disabled={status === "waiting"}
                 className={`flex flex-col items-center justify-center w-28 h-28 rounded-xl border-2 transition-all font-bold text-sm
                   ${card.bgColor} ${card.borderColor} ${card.hoverColor}
                   ${selected?.id === card.id ? "ring-4 ring-blue-300 scale-105" : ""}
+                  disabled:opacity-60 disabled:cursor-not-allowed
                 `}
               >
                 <span className="text-3xl mb-1">{card.icon}</span>
@@ -189,25 +191,9 @@ export default function NfcWriter() {
               </button>
             ))}
           </div>
-        </div>
 
-        {/* Step 2: Register */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6 shadow-sm">
-          <h2 className="text-lg font-bold text-gray-700 mb-4">
-            2. カードをかざして登録
-          </h2>
-
-          {selected ? (
-            <div className="flex flex-col items-center gap-4">
-              <div
-                className={`flex flex-col items-center justify-center w-32 h-32 rounded-2xl border-3 font-bold
-                  ${selected.bgColor} ${selected.borderColor}
-                `}
-              >
-                <span className="text-4xl mb-2">{selected.icon}</span>
-                <span className={`text-lg ${selected.textColor}`}>{selected.label}</span>
-              </div>
-
+          {selected && (
+            <div className="flex flex-col items-center gap-4 mt-6 pt-6 border-t border-gray-100">
               <div className="flex gap-3">
                 <button
                   onClick={handleRegister}
@@ -220,7 +206,7 @@ export default function NfcWriter() {
                     disabled:opacity-60 disabled:cursor-not-allowed
                   `}
                 >
-                  {status === "waiting" ? "カードを待っています..." : "登録する"}
+                  {status === "waiting" ? "カードを待っています..." : `「${selected.label}」を登録する`}
                 </button>
 
                 {status === "waiting" && (
@@ -245,10 +231,6 @@ export default function NfcWriter() {
                 </div>
               )}
             </div>
-          ) : (
-            <p className="text-gray-400 text-center py-8">
-              上から方向を選んでください
-            </p>
           )}
         </div>
       </div>
