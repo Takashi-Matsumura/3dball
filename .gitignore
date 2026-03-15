@@ -39,6 +39,12 @@ yarn-error.log*
 # database
 /data/
 
+# portable node.js (Windows distribution)
+/node/
+
+# distribution zip
+*.zip
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

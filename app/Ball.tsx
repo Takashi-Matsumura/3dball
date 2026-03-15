@@ -241,7 +241,6 @@ export default function Ball() {
           </button>
         ) : (
           <div className="w-52 flex items-center bg-white/95 rounded-lg shadow-md backdrop-blur border border-gray-200 overflow-hidden">
-            <span className="flex-1 px-3 py-2 text-sm font-bold text-gray-700">{t("programming")}</span>
             <button
               onClick={() => {
                 setProgMode(false);
@@ -249,7 +248,7 @@ export default function Ball() {
                 setProgIndex(-1);
                 setProgRunning(false);
               }}
-              className="px-3 py-2 transition border-l border-gray-200 bg-yellow-400 hover:bg-yellow-300 text-black/70"
+              className="px-3 py-2 transition border-r border-gray-200 bg-gray-200 hover:bg-gray-300 text-black/70"
               title={t("close")}
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
@@ -257,6 +256,7 @@ export default function Ball() {
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             </button>
+            <span className="flex-1 px-3 py-2 text-sm font-bold text-gray-700">{t("programming")}</span>
           </div>
         )}
 

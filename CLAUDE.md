@@ -45,3 +45,25 @@
 - **Vercel**: https://3dball-hazel.vercel.app — リプレイページ (`/replay`) のみ公開。ミドルウェアで他ルートをブロック。NFC/SQLite 関連のルートは Vercel 上では動作しない (ネイティブモジュール不在)。
 - **ローカル**: `npm run dev` でフル機能 (NFC リーダー、プログラミング、NTAG 書き込み、リプレイ)。
 - **デプロイ方法**: `vercel --prod` または GitHub push で自動デプロイ。
+
+## Windows Portable Distribution
+
+イベント会場など複数の Windows PC にデプロイするためのポータブル配布機能。Docker は NFC リーダー (PC/SC) のパススルーが困難なため、Node.js ポータブル版を同梱する方式を採用。
+
+### Files
+
+- **scripts/setup.ps1** — 初回セットアップスクリプト。Node.js v22 ポータブル版のダウンロード、`npm install`、プロダクションビルドを実行。
+- **scripts/pack.ps1** — セットアップ済みフォルダを `3dball-portable.zip` に圧縮。配布用。
+- **start.bat** — サーバー起動 (ダブルクリック)。`.rebuild-needed` フラグがある場合、初回起動時にネイティブモジュール (`better-sqlite3`, `nfc-pcsc`) を自動再ビルド。
+
+### Workflow
+
+1. **準備** (インターネットのある環境で1回): `powershell -ExecutionPolicy Bypass -File scripts\setup.ps1`
+2. **ZIP 作成**: `powershell -ExecutionPolicy Bypass -File scripts\pack.ps1` (または macOS から手動で ZIP 作成)
+3. **配布**: ZIP を各 Windows PC に展開 → `start.bat` ダブルクリックで起動 → http://localhost:3000
+
+### Notes
+
+- `node/` ディレクトリと `*.zip` は `.gitignore` で除外。
+- macOS でビルドした ZIP を Windows で使う場合、`.rebuild-needed` フラグにより初回起動時にネイティブモジュールが自動再ビルドされる。
+- NFC リーダーは Windows の PC/SC ドライバ (WinSCard) 経由でアクセス。コンテナ不要。

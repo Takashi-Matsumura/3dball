@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from "react";
 
 export type Locale = "ja" | "en";
 
@@ -74,7 +74,19 @@ const I18nContext = createContext<I18nContextType>({
 });
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocale] = useState<Locale>("ja");
+  const [locale, setLocaleState] = useState<Locale>("ja");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("locale");
+    if (saved === "ja" || saved === "en") {
+      setLocaleState(saved);
+    }
+  }, []);
+
+  const setLocale = useCallback((l: Locale) => {
+    setLocaleState(l);
+    localStorage.setItem("locale", l);
+  }, []);
 
   const t = useCallback(
     (key: TranslationKey) => translations[key][locale],
