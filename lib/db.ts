@@ -1,11 +1,13 @@
-import Database from "better-sqlite3";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Database = require("better-sqlite3");
 import path from "path";
 
 const DB_PATH = path.join(process.cwd(), "data", "nfc.db");
 
-let db: Database.Database | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let db: any = null;
 
-function getDb(): Database.Database {
+function getDb() {
   if (db) return db;
 
   // Ensure data directory exists

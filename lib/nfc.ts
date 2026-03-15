@@ -1,6 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NFC } from "nfc-pcsc";
-import { loadCards, upsertCard, deleteCard } from "./db";
+let NFC: any;
+try { NFC = require("nfc-pcsc").NFC; } catch { /* not available on Vercel */ }
+const db = (() => {
+  try { return require("./db") as typeof import("./db"); } catch { return null; }
+})()
+const loadCards = db?.loadCards ?? (() => new Map<string, string>());
+const upsertCard = db?.upsertCard ?? (() => {});
+const deleteCard = db?.deleteCard ?? (() => {});
 
 // ---- UID-based card mapping (backed by SQLite) ----
 // In-memory cache loaded from DB at startup
@@ -54,6 +60,7 @@ let pendingRegister: {
 
 function ensureNfc() {
   if (nfc) return;
+  if (!NFC) return; // nfc-pcsc not available (e.g. Vercel)
   nfc = new NFC();
 
   nfc.on("reader", (reader: any) => {
