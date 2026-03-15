@@ -13,20 +13,28 @@ import {
 } from "@/lib/ball-shared";
 
 export function CameraController({ is2D }: { is2D: boolean }) {
-  const { camera } = useThree();
+  const { camera, size } = useThree();
   const target = is2D ? CAMERA_2D : CAMERA_3D;
   const currentPos = useRef(new THREE.Vector3(...CAMERA_3D.pos));
   const currentLookAt = useRef(new THREE.Vector3(...CAMERA_3D.lookAt));
   const currentUp = useRef(new THREE.Vector3(...CAMERA_3D.up));
 
   useFrame((_state, delta) => {
-    const targetPos = new THREE.Vector3(...target.pos);
-    const targetLookAt = new THREE.Vector3(...target.lookAt);
+    const aspect = size.width / size.height;
+    // Pull camera back for portrait screens so the full board is visible
+    const scale = aspect < 1 ? 1 / aspect : 1;
+
+    const basePos = new THREE.Vector3(...target.pos);
+    const lookAt = new THREE.Vector3(...target.lookAt);
+    // Scale the offset from lookAt point
+    const offset = basePos.clone().sub(lookAt).multiplyScalar(scale);
+    const targetPos = lookAt.clone().add(offset);
+
     const targetUp = new THREE.Vector3(...target.up);
     const speed = 4 * delta;
 
     currentPos.current.lerp(targetPos, speed);
-    currentLookAt.current.lerp(targetLookAt, speed);
+    currentLookAt.current.lerp(lookAt, speed);
     currentUp.current.lerp(targetUp, speed).normalize();
 
     camera.position.copy(currentPos.current);
