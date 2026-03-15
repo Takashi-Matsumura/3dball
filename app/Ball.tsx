@@ -1,285 +1,18 @@
 "use client";
 
-import { useRef, useMemo, useEffect, useState, useCallback } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import * as THREE from "three";
+import { useRef, useEffect, useState, useCallback } from "react";
+import { Canvas } from "@react-three/fiber";
 import { useI18n, Locale } from "@/lib/i18n";
-
-const CELL_SIZE = 1.2;
-const BALL_RADIUS = 0.4;
-
-const COLOR_PRESETS = [
-  "#ff0000", "#ff8800", "#ffcc00", "#00cc00", "#0088ff",
-  "#4488ff", "#8844ff", "#ff44aa", "#ffffff", "#000000",
-];
-
-interface PatternConfig {
-  pattern: number;
-  color1: string;
-  color2: string;
-  scale: number; // 模様の幅 (1〜30)
-}
-
-function makeShaderMaterial(config: PatternConfig) {
-  const fragmentShaders: Record<number, string> = {
-    0: `
-      uniform vec3 color1;
-      uniform vec3 color2;
-      uniform float scale;
-      varying vec3 vPosition;
-      void main() {
-        float stripe = step(0.0, sin(vPosition.y * scale));
-        float lng = atan(vPosition.z, vPosition.x);
-        float stripeV = step(0.0, sin(lng * scale * 0.5));
-        float pattern = mod(stripe + stripeV, 2.0);
-        vec3 color = mix(color1, color2, pattern);
-        gl_FragColor = vec4(color, 1.0);
-      }
-    `,
-    1: `
-      uniform vec3 color1;
-      uniform vec3 color2;
-      uniform float scale;
-      varying vec3 vPosition;
-      void main() {
-        float stripe = smoothstep(0.45, 0.55, fract(vPosition.y * scale));
-        vec3 color = mix(color1, color2, stripe);
-        gl_FragColor = vec4(color, 1.0);
-      }
-    `,
-  };
-
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      color1: { value: new THREE.Color(config.color1) },
-      color2: { value: new THREE.Color(config.color2) },
-      scale: { value: config.scale },
-    },
-    vertexShader: `
-      varying vec3 vPosition;
-      void main() {
-        vPosition = position;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: fragmentShaders[config.pattern],
-  });
-}
-
-const CAMERA_3D = {
-  pos: [0, 3, 6] as const,
-  lookAt: [0, 0, 0] as const,
-  up: [0, 1, 0] as const,
-};
-const CAMERA_2D = {
-  pos: [0, 7, 0] as const,
-  lookAt: [0, 0, 0] as const,
-  up: [0, 0, -1] as const, // -Z = screen up, so row=0 is at top, +X = right
-};
-
-function CameraController({ is2D }: { is2D: boolean }) {
-  const { camera } = useThree();
-  const target = is2D ? CAMERA_2D : CAMERA_3D;
-  const currentPos = useRef(new THREE.Vector3(...CAMERA_3D.pos));
-  const currentLookAt = useRef(new THREE.Vector3(...CAMERA_3D.lookAt));
-  const currentUp = useRef(new THREE.Vector3(...CAMERA_3D.up));
-
-  useFrame((_state, delta) => {
-    const targetPos = new THREE.Vector3(...target.pos);
-    const targetLookAt = new THREE.Vector3(...target.lookAt);
-    const targetUp = new THREE.Vector3(...target.up);
-    const speed = 4 * delta;
-
-    currentPos.current.lerp(targetPos, speed);
-    currentLookAt.current.lerp(targetLookAt, speed);
-    currentUp.current.lerp(targetUp, speed).normalize();
-
-    camera.position.copy(currentPos.current);
-    camera.up.copy(currentUp.current);
-    camera.lookAt(currentLookAt.current);
-  });
-
-  return null;
-}
-
-function Board() {
-  const boardSize = CELL_SIZE * 3;
-  const borderWidth = 0.15;
-  const frameSize = boardSize + borderWidth * 2;
-
-  const cells = [];
-  for (let row = 0; row < 3; row++) {
-    for (let col = 0; col < 3; col++) {
-      const isDark = (row + col) % 2 === 0;
-      cells.push(
-        <mesh
-          key={`${row}-${col}`}
-          position={[
-            (col - 1) * CELL_SIZE,
-            0.01,
-            (row - 1) * CELL_SIZE,
-          ]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          receiveShadow
-        >
-          <planeGeometry args={[CELL_SIZE, CELL_SIZE]} />
-          <meshStandardMaterial color={isDark ? "#555566" : "#e0d8c8"} />
-        </mesh>
-      );
-    }
-  }
-  return (
-    <>
-      {/* Wooden frame border */}
-      <mesh position={[0, -0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[frameSize, frameSize]} />
-        <meshStandardMaterial color="#8B6914" roughness={0.7} />
-      </mesh>
-      {/* Board cells */}
-      {cells}
-    </>
-  );
-}
-
-function Ground() {
-  return (
-    <mesh position={[0, -0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-      <planeGeometry args={[20, 20]} />
-      <meshStandardMaterial color="#1a1a24" roughness={1} />
-    </mesh>
-  );
-}
-
-interface AnimState {
-  fromX: number;
-  fromZ: number;
-  toX: number;
-  toZ: number;
-  rotAxisX: number;
-  rotAxisZ: number;
-  progress: number;
-}
-
-function Sphere({
-  gridCol,
-  gridRow,
-  onAnimDone,
-  patternConfig,
-}: {
-  gridCol: number;
-  gridRow: number;
-  onAnimDone: () => void;
-  patternConfig: PatternConfig;
-}) {
-  const groupRef = useRef<THREE.Group>(null);
-  const innerRef = useRef<THREE.Group>(null);
-  const animRef = useRef<AnimState | null>(null);
-  const prevPos = useRef({ col: gridCol, row: gridRow });
-  const cumulativeRotation = useRef(new THREE.Quaternion());
-
-  const ANIM_SPEED = 4;
-
-  useEffect(() => {
-    const prevCol = prevPos.current.col;
-    const prevRow = prevPos.current.row;
-    if (prevCol === gridCol && prevRow === gridRow) return;
-
-    const fromX = (prevCol - 1) * CELL_SIZE;
-    const fromZ = (prevRow - 1) * CELL_SIZE;
-    const toX = (gridCol - 1) * CELL_SIZE;
-    const toZ = (gridRow - 1) * CELL_SIZE;
-
-    const dx = gridCol - prevCol;
-    const dz = gridRow - prevRow;
-
-    animRef.current = {
-      fromX,
-      fromZ,
-      toX,
-      toZ,
-      rotAxisX: dz,
-      rotAxisZ: -dx,
-      progress: 0,
-    };
-
-    prevPos.current = { col: gridCol, row: gridRow };
-  }, [gridCol, gridRow]);
-
-  useFrame((_state, delta) => {
-    const anim = animRef.current;
-    if (!anim || !groupRef.current || !innerRef.current) {
-      return;
-    }
-
-    anim.progress += delta * ANIM_SPEED;
-    const t = Math.min(anim.progress, 1);
-    const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-
-    const x = anim.fromX + (anim.toX - anim.fromX) * eased;
-    const z = anim.fromZ + (anim.toZ - anim.fromZ) * eased;
-    groupRef.current.position.set(x, BALL_RADIUS, z);
-
-    const totalDist = Math.sqrt(
-      (anim.toX - anim.fromX) ** 2 + (anim.toZ - anim.fromZ) ** 2
-    );
-    const totalAngle = totalDist / BALL_RADIUS;
-    const currentAngle = totalAngle * eased;
-
-    const axis = new THREE.Vector3(anim.rotAxisX, 0, anim.rotAxisZ).normalize();
-    const rollQuat = new THREE.Quaternion().setFromAxisAngle(axis, currentAngle);
-    const combined = rollQuat.multiply(cumulativeRotation.current.clone());
-    innerRef.current.quaternion.copy(combined);
-
-    if (t >= 1) {
-      cumulativeRotation.current.copy(innerRef.current.quaternion);
-      animRef.current = null;
-      onAnimDone();
-    }
-  });
-
-  const material = useMemo(() => makeShaderMaterial(patternConfig), [patternConfig]);
-
-  const initX = (gridCol - 1) * CELL_SIZE;
-  const initZ = (gridRow - 1) * CELL_SIZE;
-
-  return (
-    <group ref={groupRef} position={[initX, BALL_RADIUS, initZ]}>
-      <group ref={innerRef}>
-        <mesh material={material} castShadow>
-          <sphereGeometry args={[BALL_RADIUS, 64, 64]} />
-        </mesh>
-      </group>
-    </group>
-  );
-}
-
-const NFC_DIRECTIONS = ["UP", "DOWN", "LEFT", "RIGHT"] as const;
-const NFC_ICONS: Record<string, string> = { UP: "⬆", DOWN: "⬇", LEFT: "⬅", RIGHT: "➡" };
-
-function moveGrid(
-  prev: { col: number; row: number },
-  direction: string,
-): { col: number; row: number } | null {
-  let { col, row } = prev;
-  switch (direction) {
-    case "UP":
-      row = Math.max(0, row - 1);
-      break;
-    case "DOWN":
-      row = Math.min(2, row + 1);
-      break;
-    case "LEFT":
-      col = Math.max(0, col - 1);
-      break;
-    case "RIGHT":
-      col = Math.min(2, col + 1);
-      break;
-    default:
-      return null;
-  }
-  if (col === prev.col && row === prev.row) return null;
-  return { col, row };
-}
+import {
+  CELL_SIZE,
+  COLOR_PRESETS,
+  PatternConfig,
+  NFC_DIRECTIONS,
+  NFC_ICONS,
+  moveGrid,
+  encodeProgram,
+} from "@/lib/ball-shared";
+import { CameraController, Board, Ground, Sphere } from "@/app/components/Scene";
 
 export default function Ball() {
   const { locale, setLocale, t } = useI18n();
@@ -305,6 +38,11 @@ export default function Ball() {
   const progModeRef = useRef(false);
   const progStepsRef = useRef<HTMLDivElement>(null);
   const progRunningRef = useRef(false);
+
+  // NTAG write
+  const [showNtagModal, setShowNtagModal] = useState(false);
+  const [ntagWriting, setNtagWriting] = useState(false);
+  const [ntagResult, setNtagResult] = useState<"success" | "error" | null>(null);
 
   useEffect(() => { progModeRef.current = progMode; }, [progMode]);
   useEffect(() => { progRunningRef.current = progRunning; }, [progRunning]);
@@ -351,6 +89,55 @@ export default function Ball() {
     setProgIndex(-1);
     setProgRunning(false);
   }, [program]);
+
+  const handleOpenNtagModal = useCallback(() => {
+    if (program.length === 0 || !nfcConnected) return;
+    setShowNtagModal(true);
+    setNtagResult(null);
+  }, [program, nfcConnected]);
+
+  const handleStartNtagWrite = useCallback(async () => {
+    if (program.length === 0) return;
+    const encoded = encodeProgram(program);
+    const params = new URLSearchParams({ p: encoded });
+    if (patternConfig.color1 !== "#4488ff") params.set("c1", patternConfig.color1.replace("#", ""));
+    if (patternConfig.color2 !== "#ffffff") params.set("c2", patternConfig.color2.replace("#", ""));
+    if (patternConfig.scale !== 20) params.set("s", String(patternConfig.scale));
+    if (patternConfig.pattern !== 0) params.set("pt", String(patternConfig.pattern));
+    params.set("t", String(Math.floor(Date.now() / 1000)));
+
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin;
+    const url = `${baseUrl}/replay?${params.toString()}`;
+
+    setNtagWriting(true);
+    setNtagResult(null);
+    try {
+      const res = await fetch("/api/nfc/write", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNtagResult("success");
+        window.open(url, "_blank");
+        setTimeout(() => setShowNtagModal(false), 1500);
+      } else {
+        setNtagResult("error");
+      }
+    } catch {
+      setNtagResult("error");
+    } finally {
+      setNtagWriting(false);
+      setTimeout(() => setNtagResult(null), 3000);
+    }
+  }, [program, patternConfig]);
+
+  const handleCancelWrite = useCallback(() => {
+    fetch("/api/nfc/write", { method: "DELETE" });
+    setNtagWriting(false);
+    setShowNtagModal(false);
+  }, []);
 
   const handleAnimDone = useCallback(() => {
     setIsAnimating(false);
@@ -529,6 +316,7 @@ export default function Ball() {
             >
               {progRunning ? t("running") : t("run")}
             </button>
+
           </div>
         )}
       </div>
@@ -652,8 +440,9 @@ export default function Ball() {
         )}
       </div>
 
-      {/* Footer — NFC status */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center px-4 py-2 bg-black/50 backdrop-blur">
+      {/* Footer — NFC status + NTAG save */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center px-4 py-2 bg-black/50 backdrop-blur">
+        <div className="flex-1" />
         <div className="flex items-center gap-2 text-xs font-medium text-white/80">
           <span
             className={`inline-block w-2 h-2 rounded-full ${
@@ -662,7 +451,106 @@ export default function Ball() {
           />
           {nfcConnected ? t("nfcConnected") : t("nfcDisconnected")}
         </div>
+        <div className="flex-1 flex justify-end">
+          {progMode && program.length > 0 && nfcConnected && !progRunning && (
+            <button
+              onClick={handleOpenNtagModal}
+              className="text-white/30 hover:text-white/70 transition"
+              title={t("saveToNtag")}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* NTAG write modal */}
+      {showNtagModal && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 mx-4 max-w-sm w-full flex flex-col items-center gap-4">
+            {ntagResult === "success" ? (
+              <>
+                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-green-600">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <p className="text-lg font-bold text-gray-800">{t("writeSuccess")}</p>
+              </>
+            ) : ntagResult === "error" ? (
+              <>
+                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-red-600">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </div>
+                <p className="text-lg font-bold text-gray-800">{t("writeFailed")}</p>
+                <button
+                  onClick={handleCancelWrite}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition"
+                >
+                  {t("close")}
+                </button>
+              </>
+            ) : ntagWriting ? (
+              <>
+                {/* Sonar animation */}
+                <div className="relative w-24 h-24 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-2 border-blue-400 animate-ping opacity-30" />
+                  <div className="absolute inset-2 rounded-full border-2 border-blue-400 animate-ping opacity-40" style={{ animationDelay: "0.3s" }} />
+                  <div className="absolute inset-4 rounded-full border-2 border-blue-400 animate-ping opacity-50" style={{ animationDelay: "0.6s" }} />
+                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-blue-600">
+                      <rect x="2" y="6" width="20" height="12" rx="2" />
+                      <path d="M12 12h.01" />
+                      <path d="M17 12h.01" />
+                      <path d="M7 12h.01" />
+                    </svg>
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-gray-600">{t("waitingForNtag")}</p>
+                <button
+                  onClick={handleCancelWrite}
+                  className="px-4 py-2 text-sm text-gray-400 hover:text-gray-600 transition"
+                >
+                  {t("cancel")}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-blue-500">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                    <polyline points="17 21 17 13 7 13 7 21" />
+                    <polyline points="7 3 7 8 15 8" />
+                  </svg>
+                </div>
+                <p className="text-lg font-bold text-gray-800">{t("saveToNtag")}</p>
+                <p className="text-sm text-gray-500 text-center whitespace-pre-line">{t("saveToNtagDesc")}</p>
+                <div className="flex gap-2 w-full">
+                  <button
+                    onClick={() => setShowNtagModal(false)}
+                    className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+                  >
+                    {t("cancel")}
+                  </button>
+                  <button
+                    onClick={handleStartNtagWrite}
+                    className="flex-1 px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+                  >
+                    {t("saveToNtag")}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* NFC flash */}
       {nfcFlash && (

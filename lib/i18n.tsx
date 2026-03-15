@@ -43,6 +43,20 @@ const translations = {
   registerBtn: { ja: "を登録する", en: "Register" },
   cancel: { ja: "キャンセル", en: "Cancel" },
   language: { ja: "言語", en: "Language" },
+
+  // Replay page
+  replay: { ja: "リプレイ", en: "Replay" },
+  replayAgain: { ja: "もう一度見る", en: "Watch Again" },
+  noProgram: { ja: "プログラムが指定されていません", en: "No program specified" },
+  steps: { ja: "ステップ", en: "steps" },
+
+  // NTAG write
+  saveToNtag: { ja: "NTAGに保存", en: "Save to NTAG" },
+  saveToNtagDesc: { ja: "NTAGカードにプログラムを書き込みます。\nカードをリーダーにかざしてください。", en: "Write the program to an NTAG card.\nTap a card on the reader." },
+  tapNtagToWrite: { ja: "NTAGカードをかざしてください...", en: "Tap an NTAG card..." },
+  writeSuccess: { ja: "書き込み完了！", en: "Written!" },
+  writeFailed: { ja: "書き込みに失敗しました", en: "Write failed" },
+  waitingForNtag: { ja: "NTAGを待っています...", en: "Waiting for NTAG..." },
 } as const;
 
 type TranslationKey = keyof typeof translations;
