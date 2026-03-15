@@ -38,6 +38,8 @@ export default function Ball() {
   const progModeRef = useRef(false);
   const progStepsRef = useRef<HTMLDivElement>(null);
   const progRunningRef = useRef(false);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // NTAG write
   const [showNtagModal, setShowNtagModal] = useState(false);
@@ -284,12 +286,35 @@ export default function Ball() {
                 program.map((dir, i) => (
                   <div
                     key={i}
+                    draggable={!progRunning}
+                    onDragStart={() => setDragIndex(i)}
+                    onDragOver={(e) => { e.preventDefault(); setDragOverIndex(i); }}
+                    onDragEnd={() => {
+                      if (dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
+                        setProgram((p) => {
+                          const next = [...p];
+                          const [item] = next.splice(dragIndex, 1);
+                          next.splice(dragOverIndex, 0, item);
+                          return next;
+                        });
+                      }
+                      setDragIndex(null);
+                      setDragOverIndex(null);
+                    }}
                     className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                       progIndex === i
                         ? "bg-yellow-300 scale-105"
-                        : "bg-gray-100"
+                        : dragOverIndex === i && dragIndex !== null && dragIndex !== i
+                          ? "bg-blue-100 border-t-2 border-blue-400"
+                          : dragIndex === i
+                            ? "bg-gray-200 opacity-50"
+                            : "bg-gray-100"
                     }`}
+                    style={{ cursor: progRunning ? "default" : "grab" }}
                   >
+                    {!progRunning && (
+                      <span className="text-gray-300 text-xs cursor-grab select-none">☰</span>
+                    )}
                     <span className="text-xs text-gray-400 w-4 text-right">{i + 1}</span>
                     <span className="text-lg">{NFC_ICONS[dir]}</span>
                     <span className="text-xs text-gray-600">{dir}</span>
