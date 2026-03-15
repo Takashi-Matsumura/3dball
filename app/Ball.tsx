@@ -120,7 +120,9 @@ export default function Ball() {
       const data = await res.json();
       if (data.success) {
         setNtagResult("success");
-        window.open(url, "_blank");
+        // Open replay locally for dev verification
+        const previewUrl = `${window.location.origin}/replay?${params.toString()}`;
+        window.open(previewUrl, "_blank");
         setTimeout(() => setShowNtagModal(false), 1500);
       } else {
         setNtagResult("error");

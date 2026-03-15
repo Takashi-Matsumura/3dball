@@ -13,7 +13,7 @@
 ## Architecture
 
 - **lib/ball-shared.ts** — 共有ロジック (React 非依存)。定数 (`CELL_SIZE`, `BALL_RADIUS`, `COLOR_PRESETS`, カメラプリセット, `NFC_DIRECTIONS`, `NFC_ICONS`)、`PatternConfig` インターフェース、`makeShaderMaterial()`、`moveGrid()`、`encodeProgram()` / `decodeProgram()`。
-- **app/components/Scene.tsx** — 共有 3D コンポーネント (`CameraController`, `Board`, `Ground`, `Sphere`)。Ball.tsx とリプレイページの両方で使用。
+- **app/components/Scene.tsx** — 共有 3D コンポーネント (`CameraController`, `Board`, `Ground`, `Sphere`)。Ball.tsx とリプレイページの両方で使用。`CameraController` はアスペクト比に応じてカメラ距離を自動調整 (縦画面対応)。
 - **app/Ball.tsx** — メインの 3D シーン。NFC ポーリング、キーボード操作、プログラミングモード、NTAG 書き込みモーダルを含む。共有モジュールからインポート。
 - **app/replay/page.tsx** — リプレイページ (サーバーコンポーネント)。URL パラメータからプログラムを読み取り `ReplayScene` に渡す。
 - **app/replay/ReplayScene.tsx** — リプレイ UI (クライアントコンポーネント)。ページ読み込み後に自動再生、方向アイコン列ハイライト、Replay ボタン、3D/2D 切替。
@@ -37,8 +37,11 @@
 - リプレイページ URL エンコーディング: `/replay?p=UUDLRR&c1=4488ff&c2=ffffff&s=20&pt=0&t=1773557770` (p=プログラム, c1/c2=色, s=幅, pt=パターン, t=作成日時 Unix秒)。
 - `nfc-pcsc` / `better-sqlite3` は `optionalDependencies` に配置し、`lib/nfc.ts` / `lib/db.ts` では動的 `require()` を使用。Vercel 上ではネイティブモジュールが無くてもビルド・デプロイ可能。リプレイページは純粋にクライアントサイドで動作。
 - `NEXT_PUBLIC_BASE_URL` 環境変数で NTAG に書き込む URL のベースドメインを指定 (`.env.local` で設定)。未設定時は `window.location.origin` を使用。
+- NTAG 書き込み成功後のプレビューは常に `localhost` で開く (外部ドメインだとブラウザのポップアップブロックに引っかかるため)。NTAG 自体には `NEXT_PUBLIC_BASE_URL` のドメインが書き込まれる。
+- **middleware.ts**: Vercel 上 (`VERCEL` 環境変数あり) では `/replay` 以外のルートを `/replay` にリライト。ローカル開発には影響なし。
 
 ## Deployment
 
-- **Vercel**: https://3dball-hazel.vercel.app — リプレイページ (`/replay`) が主な用途。NFC/SQLite 関連のルートは Vercel 上では動作しない (ネイティブモジュール不在)。
+- **Vercel**: https://3dball-hazel.vercel.app — リプレイページ (`/replay`) のみ公開。ミドルウェアで他ルートをブロック。NFC/SQLite 関連のルートは Vercel 上では動作しない (ネイティブモジュール不在)。
 - **ローカル**: `npm run dev` でフル機能 (NFC リーダー、プログラミング、NTAG 書き込み、リプレイ)。
+- **デプロイ方法**: `vercel --prod` または GitHub push で自動デプロイ。
