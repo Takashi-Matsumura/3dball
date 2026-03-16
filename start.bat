@@ -23,7 +23,7 @@ if not exist "%ROOT%node\node.exe" (
 :: Check if .next build exists
 if not exist "%ROOT%.next" (
     echo [INFO] Build not found. Running build ...
-    "%ROOT%node\node.exe" "%ROOT%node\node_modules\npm\bin\npm-cli.js" run build
+    "%ROOT%node\node.exe" "%ROOT%node_modules\next\dist\bin\next" build
     if errorlevel 1 (
         echo [ERROR] Build failed.
         pause
@@ -45,6 +45,6 @@ echo   URL: http://localhost:3000
 echo   Stop: Ctrl+C or close this window
 echo.
 
-"%ROOT%node\node.exe" "%ROOT%node\node_modules\npm\bin\npm-cli.js" start
+"%ROOT%node\node.exe" "%ROOT%node_modules\next\dist\bin\next" start
 
 pause
