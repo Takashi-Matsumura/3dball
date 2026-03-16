@@ -8,6 +8,7 @@ import {
   moveGrid,
 } from "@/lib/ball-shared";
 import { CameraController, Board, Ground, Sphere } from "@/app/components/Scene";
+import { playMove, playJump, playSuccess } from "@/lib/sounds";
 
 interface ReplaySceneProps {
   steps: string[];
@@ -72,6 +73,7 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
       const direction = steps[i];
       if (direction === "JUMP") {
         setJumping(true);
+        playJump();
         await new Promise<void>((resolve) => {
           jumpDoneResolveRef.current = resolve;
         });
@@ -79,6 +81,7 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
         const next = moveGrid(currentPos, direction);
         if (next) {
           currentPos = next;
+          playMove();
           setIsAnimating(true);
           setGridPos(next);
           await new Promise<void>((resolve) => {
@@ -90,6 +93,7 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
     }
     setProgIndex(-1);
     setFinished(true);
+    playSuccess();
   }, [steps]);
 
   // Auto-play on mount

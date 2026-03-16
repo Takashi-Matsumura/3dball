@@ -13,6 +13,7 @@ import {
   encodeProgram,
 } from "@/lib/ball-shared";
 import { CameraController, Board, Ground, Sphere } from "@/app/components/Scene";
+import { playMove, playJump, playBump, playNfcScan, playSuccess } from "@/lib/sounds";
 
 export default function Ball() {
   const { locale, setLocale, t } = useI18n();
@@ -79,6 +80,7 @@ export default function Ball() {
       const direction = program[i];
       if (direction === "JUMP") {
         setJumping(true);
+        playJump();
         await new Promise<void>((resolve) => {
           jumpDoneResolveRef.current = resolve;
         });
@@ -86,6 +88,7 @@ export default function Ball() {
         const next = moveGrid(currentPos, direction);
         if (next) {
           currentPos = next;
+          playMove();
           setIsAnimating(true);
           setGridPos(next);
           // Wait for animation to complete
@@ -99,6 +102,7 @@ export default function Ball() {
     }
     setProgIndex(-1);
     setProgRunning(false);
+    playSuccess();
   }, [program]);
 
   const handleOpenNtagModal = useCallback(() => {
@@ -177,6 +181,7 @@ export default function Ball() {
           // Programming mode: add to program instead of moving
           if (progModeRef.current && !progRunningRef.current) {
             setProgram((prev) => [...prev, cardId]);
+            playNfcScan();
             setNfcFlash(cardId);
             setTimeout(() => { if (!cancelled) setNfcFlash(null); }, 500);
             continue;
@@ -188,10 +193,15 @@ export default function Ball() {
 
           if (cardId === "JUMP") {
             setJumping(true);
+            playJump();
           } else {
             setGridPos((prev) => {
               const next = moveGrid(prev, cardId);
-              if (!next) return prev;
+              if (!next) {
+                playBump();
+                return prev;
+              }
+              playMove();
               setIsAnimating(true);
               return next;
             });
@@ -222,7 +232,10 @@ export default function Ball() {
       if (progMode || isAnimating) return;
       if (e.key === " " || e.code === "Space") {
         e.preventDefault();
-        if (!jumping) setJumping(true);
+        if (!jumping) {
+          setJumping(true);
+          playJump();
+        }
         return;
       }
       const keyMap: Record<string, string> = {
@@ -236,7 +249,11 @@ export default function Ball() {
       e.preventDefault();
       setGridPos((prev) => {
         const next = moveGrid(prev, direction);
-        if (!next) return prev;
+        if (!next) {
+          playBump();
+          return prev;
+        }
+        playMove();
         setIsAnimating(true);
         return next;
       });
