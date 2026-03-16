@@ -104,21 +104,36 @@ export interface AnimState {
 export function Sphere({
   gridCol,
   gridRow,
+  jumping,
   onAnimDone,
+  onJumpDone,
   patternConfig,
 }: {
   gridCol: number;
   gridRow: number;
+  jumping?: boolean;
   onAnimDone: () => void;
+  onJumpDone?: () => void;
   patternConfig: PatternConfig;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const innerRef = useRef<THREE.Group>(null);
   const animRef = useRef<AnimState | null>(null);
+  const jumpRef = useRef<{ bounce: number; progress: number } | null>(null);
   const prevPos = useRef({ col: gridCol, row: gridRow });
   const cumulativeRotation = useRef(new THREE.Quaternion());
 
   const ANIM_SPEED = 4;
+  const JUMP_SPEED = 3;
+  const JUMP_HEIGHT = BALL_RADIUS * 2.5;
+  const BOUNCE_COUNT = 3;
+
+  // Start jump animation
+  useEffect(() => {
+    if (jumping && !jumpRef.current) {
+      jumpRef.current = { bounce: 0, progress: 0 };
+    }
+  }, [jumping]);
 
   useEffect(() => {
     const prevCol = prevPos.current.col;
@@ -147,8 +162,41 @@ export function Sphere({
   }, [gridCol, gridRow]);
 
   useFrame((_state, delta) => {
+    if (!groupRef.current || !innerRef.current) return;
+
+    // Jump animation with bounces
+    const jump = jumpRef.current;
+    let jumpY = 0;
+    if (jump) {
+      // Each bounce gets smaller: height * (0.4 ^ bounce)
+      const heightScale = Math.pow(0.4, jump.bounce);
+      const bounceHeight = JUMP_HEIGHT * heightScale;
+      // Each bounce gets faster
+      const speedScale = 1 + jump.bounce * 0.5;
+
+      jump.progress += delta * JUMP_SPEED * speedScale;
+      const jt = Math.min(jump.progress, 1);
+      // Parabolic arc
+      jumpY = bounceHeight * 4 * jt * (1 - jt);
+
+      if (jt >= 1) {
+        jump.bounce++;
+        if (jump.bounce >= BOUNCE_COUNT) {
+          jumpRef.current = null;
+          jumpY = 0;
+          onJumpDone?.();
+        } else {
+          jump.progress = 0;
+          jumpY = 0;
+        }
+      }
+    }
+
+    // Move animation
     const anim = animRef.current;
-    if (!anim || !groupRef.current || !innerRef.current) {
+    if (!anim) {
+      // Update Y for jump even when not moving
+      groupRef.current.position.y = BALL_RADIUS + jumpY;
       return;
     }
 
@@ -158,7 +206,7 @@ export function Sphere({
 
     const x = anim.fromX + (anim.toX - anim.fromX) * eased;
     const z = anim.fromZ + (anim.toZ - anim.fromZ) * eased;
-    groupRef.current.position.set(x, BALL_RADIUS, z);
+    groupRef.current.position.set(x, BALL_RADIUS + jumpY, z);
 
     const totalDist = Math.sqrt(
       (anim.toX - anim.fromX) ** 2 + (anim.toZ - anim.fromZ) ** 2

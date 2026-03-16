@@ -26,6 +26,7 @@ export default function Ball() {
     color2: "#ffffff",
     scale: 20,
   });
+  const [jumping, setJumping] = useState(false);
   const [nfcConnected, setNfcConnected] = useState(false);
   const [nfcFlash, setNfcFlash] = useState<string | null>(null);
   const isAnimatingRef = useRef(false);
@@ -196,9 +197,18 @@ export default function Ball() {
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
+  const handleJumpDone = useCallback(() => {
+    setJumping(false);
+  }, []);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (progMode || isAnimating) return;
+      if (e.key === " " || e.code === "Space") {
+        e.preventDefault();
+        if (!jumping) setJumping(true);
+        return;
+      }
       const keyMap: Record<string, string> = {
         ArrowUp: "UP",
         ArrowDown: "DOWN",
@@ -215,7 +225,7 @@ export default function Ball() {
         return next;
       });
     },
-    [isAnimating, progMode]
+    [isAnimating, jumping, progMode]
   );
 
   useEffect(() => {
@@ -614,7 +624,9 @@ export default function Ball() {
         <Sphere
           gridCol={gridPos.col}
           gridRow={gridPos.row}
+          jumping={jumping}
           onAnimDone={handleAnimDone}
+          onJumpDone={handleJumpDone}
           patternConfig={patternConfig}
         />
       </Canvas>
