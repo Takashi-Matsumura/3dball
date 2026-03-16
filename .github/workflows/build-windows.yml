@@ -35,31 +35,37 @@ jobs:
         shell: pwsh
         run: |
           $dist = "3dball-portable"
-          New-Item -ItemType Directory -Path $dist -Force
+          New-Item -ItemType Directory -Path $dist -Force | Out-Null
 
           # Copy app directories
           foreach ($d in @("app", "lib", "public", "types", "scripts")) {
-            if (Test-Path $d) { Copy-Item $d $dist/$d -Recurse }
+            if (Test-Path $d) { Copy-Item $d "$dist\$d" -Recurse }
           }
 
           # Copy root files
-          foreach ($f in @("package.json", "package-lock.json", "next.config.ts",
-                           "tsconfig.json", "postcss.config.mjs", "eslint.config.mjs",
-                           "middleware.ts", "next-env.d.ts", "start.bat")) {
-            if (Test-Path $f) { Copy-Item $f $dist/ }
+          $files = @("package.json", "package-lock.json", "next.config.ts",
+                     "tsconfig.json", "postcss.config.mjs", "eslint.config.mjs",
+                     "middleware.ts", "next-env.d.ts", "start.bat")
+          foreach ($f in $files) {
+            if (Test-Path $f) { Copy-Item $f "$dist\" }
           }
 
-          # Copy .next (exclude cache)
-          robocopy .next $dist/.next /E /NFL /NDL /NJH /NJS /NC /NS /NP /XD cache | Out-Null
+          # Copy .next (exclude cache) - robocopy returns 0-7 on success
+          robocopy .next "$dist\.next" /E /NFL /NDL /NJH /NJS /NC /NS /NP /XD cache
+          if ($LASTEXITCODE -ge 8) { throw "robocopy .next failed with code $LASTEXITCODE" }
 
           # Copy node_modules
-          robocopy node_modules $dist/node_modules /E /NFL /NDL /NJH /NJS /NC /NS /NP | Out-Null
+          robocopy node_modules "$dist\node_modules" /E /NFL /NDL /NJH /NJS /NC /NS /NP
+          if ($LASTEXITCODE -ge 8) { throw "robocopy node_modules failed with code $LASTEXITCODE" }
 
           # Copy portable Node.js
-          Copy-Item node $dist/node -Recurse
+          Copy-Item node "$dist\node" -Recurse
 
           # Create empty data directory
-          New-Item -ItemType Directory -Path $dist/data -Force | Out-Null
+          New-Item -ItemType Directory -Path "$dist\data" -Force | Out-Null
+
+          # Reset exit code so GitHub Actions doesn't fail
+          $global:LASTEXITCODE = 0
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
