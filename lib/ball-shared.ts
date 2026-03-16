@@ -72,8 +72,8 @@ export const CAMERA_2D = {
   up: [0, 0, -1] as const,
 };
 
-export const NFC_DIRECTIONS = ["UP", "DOWN", "LEFT", "RIGHT"] as const;
-export const NFC_ICONS: Record<string, string> = { UP: "⬆", DOWN: "⬇", LEFT: "⬅", RIGHT: "➡" };
+export const NFC_DIRECTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "JUMP"] as const;
+export const NFC_ICONS: Record<string, string> = { UP: "⬆", DOWN: "⬇", LEFT: "⬅", RIGHT: "➡", JUMP: "⤴" };
 
 export function moveGrid(
   prev: { col: number; row: number },
@@ -100,8 +100,8 @@ export function moveGrid(
   return { col, row };
 }
 
-const DIRECTION_CHARS: Record<string, string> = { UP: "U", DOWN: "D", LEFT: "L", RIGHT: "R" };
-const CHAR_DIRECTIONS: Record<string, string> = { U: "UP", D: "DOWN", L: "LEFT", R: "RIGHT" };
+const DIRECTION_CHARS: Record<string, string> = { UP: "U", DOWN: "D", LEFT: "L", RIGHT: "R", JUMP: "J" };
+const CHAR_DIRECTIONS: Record<string, string> = { U: "UP", D: "DOWN", L: "LEFT", R: "RIGHT", J: "JUMP" };
 
 export function encodeProgram(steps: string[]): string {
   return steps.map((s) => DIRECTION_CHARS[s] || "").join("");

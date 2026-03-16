@@ -62,6 +62,7 @@ export default function Ball() {
 
   // Run program step by step
   const animDoneResolveRef = useRef<(() => void) | null>(null);
+  const jumpDoneResolveRef = useRef<(() => void) | null>(null);
 
   const runProgram = useCallback(async () => {
     if (program.length === 0) return;
@@ -76,15 +77,22 @@ export default function Ball() {
     for (let i = 0; i < program.length; i++) {
       setProgIndex(i);
       const direction = program[i];
-      const next = moveGrid(currentPos, direction);
-      if (next) {
-        currentPos = next;
-        setIsAnimating(true);
-        setGridPos(next);
-        // Wait for animation to complete
+      if (direction === "JUMP") {
+        setJumping(true);
         await new Promise<void>((resolve) => {
-          animDoneResolveRef.current = resolve;
+          jumpDoneResolveRef.current = resolve;
         });
+      } else {
+        const next = moveGrid(currentPos, direction);
+        if (next) {
+          currentPos = next;
+          setIsAnimating(true);
+          setGridPos(next);
+          // Wait for animation to complete
+          await new Promise<void>((resolve) => {
+            animDoneResolveRef.current = resolve;
+          });
+        }
       }
       // Small pause between steps
       await new Promise((r) => setTimeout(r, 200));
@@ -178,12 +186,16 @@ export default function Ball() {
           if (progModeRef.current) continue; // skip during run
           if (isAnimatingRef.current) continue;
 
-          setGridPos((prev) => {
-            const next = moveGrid(prev, cardId);
-            if (!next) return prev;
-            setIsAnimating(true);
-            return next;
-          });
+          if (cardId === "JUMP") {
+            setJumping(true);
+          } else {
+            setGridPos((prev) => {
+              const next = moveGrid(prev, cardId);
+              if (!next) return prev;
+              setIsAnimating(true);
+              return next;
+            });
+          }
 
           setNfcFlash(cardId);
           setTimeout(() => { if (!cancelled) setNfcFlash(null); }, 1000);
@@ -199,6 +211,10 @@ export default function Ball() {
 
   const handleJumpDone = useCallback(() => {
     setJumping(false);
+    if (jumpDoneResolveRef.current) {
+      jumpDoneResolveRef.current();
+      jumpDoneResolveRef.current = null;
+    }
   }, []);
 
   const handleKeyDown = useCallback(

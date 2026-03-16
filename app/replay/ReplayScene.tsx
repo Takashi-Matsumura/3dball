@@ -22,9 +22,11 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
   const [gridPos, setGridPos] = useState({ col: 1, row: 1 });
   const [isAnimating, setIsAnimating] = useState(false);
   const [is2D, setIs2D] = useState(false);
+  const [jumping, setJumping] = useState(false);
   const [progIndex, setProgIndex] = useState(-1);
   const [finished, setFinished] = useState(false);
   const animDoneResolveRef = useRef<(() => void) | null>(null);
+  const jumpDoneResolveRef = useRef<(() => void) | null>(null);
   const stepsRef = useRef<HTMLDivElement>(null);
 
   const patternConfig: PatternConfig = {
@@ -49,6 +51,14 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
     }
   }, []);
 
+  const handleJumpDone = useCallback(() => {
+    setJumping(false);
+    if (jumpDoneResolveRef.current) {
+      jumpDoneResolveRef.current();
+      jumpDoneResolveRef.current = null;
+    }
+  }, []);
+
   const runProgram = useCallback(async () => {
     setFinished(false);
     setGridPos({ col: 1, row: 1 });
@@ -60,14 +70,21 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
     for (let i = 0; i < steps.length; i++) {
       setProgIndex(i);
       const direction = steps[i];
-      const next = moveGrid(currentPos, direction);
-      if (next) {
-        currentPos = next;
-        setIsAnimating(true);
-        setGridPos(next);
+      if (direction === "JUMP") {
+        setJumping(true);
         await new Promise<void>((resolve) => {
-          animDoneResolveRef.current = resolve;
+          jumpDoneResolveRef.current = resolve;
         });
+      } else {
+        const next = moveGrid(currentPos, direction);
+        if (next) {
+          currentPos = next;
+          setIsAnimating(true);
+          setGridPos(next);
+          await new Promise<void>((resolve) => {
+            animDoneResolveRef.current = resolve;
+          });
+        }
       }
       await new Promise((r) => setTimeout(r, 200));
     }
@@ -169,7 +186,9 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
         <Sphere
           gridCol={gridPos.col}
           gridRow={gridPos.row}
+          jumping={jumping}
           onAnimDone={handleAnimDone}
+          onJumpDone={handleJumpDone}
           patternConfig={patternConfig}
         />
       </Canvas>

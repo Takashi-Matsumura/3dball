@@ -28,6 +28,7 @@ const translations = {
   dirDown: { ja: "下 (Down)", en: "Down" },
   dirLeft: { ja: "左 (Left)", en: "Left" },
   dirRight: { ja: "右 (Right)", en: "Right" },
+  dirJump: { ja: "ジャンプ", en: "Jump" },
   waitingForCard: { ja: "カードをリーダーにかざしてください...", en: "Tap a card on the reader..." },
   registered: { ja: "として登録しました！", en: "registered!" },
   registerFailed: { ja: "登録に失敗しました。", en: "Registration failed." },
@@ -41,6 +42,8 @@ const translations = {
   selectDirAndTap: { ja: "方向を選んでカードをかざして登録", en: "Select a direction and tap a card to register" },
   waitingCard: { ja: "カードを待っています...", en: "Waiting for card..." },
   registerBtn: { ja: "を登録する", en: "Register" },
+  tapToRegister: { ja: "カードをかざして登録", en: "Tap card to register" },
+  reRegister: { ja: "再登録", en: "Re-register" },
   cancel: { ja: "キャンセル", en: "Cancel" },
   language: { ja: "言語", en: "Language" },
 
