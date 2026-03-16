@@ -13,6 +13,12 @@ export default async function ReplayPage({
   const s = typeof params.s === "string" ? params.s : "";
   const pt = typeof params.pt === "string" ? params.pt : "";
   const t = typeof params.t === "string" ? params.t : "";
+  // Lv1 params
+  const sc = typeof params.sc === "string" ? params.sc : "";
+  const sr = typeof params.sr === "string" ? params.sr : "";
+  const gc = typeof params.gc === "string" ? params.gc : "";
+  const gr = typeof params.gr === "string" ? params.gr : "";
+  const ch = typeof params.ch === "string" ? params.ch : "";
 
   const steps = decodeProgram(p);
 
@@ -29,6 +35,8 @@ export default async function ReplayPage({
     );
   }
 
+  const hasLv1 = sc !== "" && sr !== "" && gc !== "" && gr !== "";
+
   return (
     <ReplayScene
       steps={steps}
@@ -37,6 +45,11 @@ export default async function ReplayPage({
       scale={s ? Number(s) : undefined}
       pattern={pt ? Number(pt) : undefined}
       createdAt={t ? Number(t) * 1000 : undefined}
+      lv1={hasLv1 ? {
+        start: { col: Number(sc), row: Number(sr) },
+        goal: { col: Number(gc), row: Number(gr) },
+        challenge: ch ? Number(ch) : undefined,
+      } : undefined}
     />
   );
 }

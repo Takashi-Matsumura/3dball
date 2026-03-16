@@ -53,6 +53,15 @@ const translations = {
   noProgram: { ja: "プログラムが指定されていません", en: "No program specified" },
   steps: { ja: "ステップ", en: "steps" },
 
+  // Lv1 mode
+  lv1: { ja: "Lv1", en: "Lv1" },
+  lv1Theme: { ja: "ゴールをめざそう！", en: "Reach the Goal!" },
+  lv1Challenge: { ja: "お題", en: "Challenge" },
+  lv1ChallengeTheme: { ja: "回でゴールをめざそう！", en: " moves to the Goal!" },
+  nextChallenge: { ja: "つぎへ", en: "Next" },
+  start: { ja: "スタート", en: "START" },
+  goal: { ja: "ゴール", en: "GOAL" },
+
   // NTAG write
   saveToNtag: { ja: "NTAGに保存", en: "Save to NTAG" },
   saveToNtagDesc: { ja: "NTAGカードにプログラムを書き込みます。\nカードをリーダーにかざしてください。", en: "Write the program to an NTAG card.\nTap a card on the reader." },

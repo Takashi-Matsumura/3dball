@@ -12,8 +12,9 @@
 
 ## Architecture
 
-- **lib/ball-shared.ts** — 共有ロジック (React 非依存)。定数 (`CELL_SIZE`, `BALL_RADIUS`, `COLOR_PRESETS`, カメラプリセット, `NFC_DIRECTIONS`, `NFC_ICONS`)、`PatternConfig` インターフェース、`makeShaderMaterial()`、`moveGrid()`、`encodeProgram()` / `decodeProgram()`。
-- **app/components/Scene.tsx** — 共有 3D コンポーネント (`CameraController`, `Board`, `Ground`, `Sphere`)。Ball.tsx とリプレイページの両方で使用。`CameraController` はアスペクト比に応じてカメラ距離を自動調整 (縦画面対応)。
+- **lib/ball-shared.ts** — 共有ロジック (React 非依存)。定数 (`CELL_SIZE`, `BALL_RADIUS`, `COLOR_PRESETS`, カメラプリセット, `NFC_DIRECTIONS`, `NFC_ICONS`)、`PatternConfig` インターフェース、`makeShaderMaterial()`、`moveGrid()`、`encodeProgram()` / `decodeProgram()`、`generateRandomPath()`。
+- **lib/sounds.ts** — Web Audio API による合成効果音 (外部ファイル不要)。`playMove()`, `playJump()`, `playBump()`, `playNfcScan()`, `playSuccess()`。
+- **app/components/Scene.tsx** — 共有 3D コンポーネント (`CameraController`, `Board`, `Ground`, `Sphere`, `CellMarker`, `TextSprite`)。Ball.tsx とリプレイページの両方で使用。`CameraController` はアスペクト比に応じてカメラ距離を自動調整 (縦画面対応)。`CellMarker` はパルスリングマーカー、`TextSprite` はキャンバスベースのテキストスプライト (Lv1 のスタート/ゴール表示用)。
 - **app/Ball.tsx** — メインの 3D シーン。NFC ポーリング、キーボード操作、プログラミングモード、NTAG 書き込みモーダルを含む。共有モジュールからインポート。
 - **app/replay/page.tsx** — リプレイページ (サーバーコンポーネント)。URL パラメータからプログラムを読み取り `ReplayScene` に渡す。
 - **app/replay/ReplayScene.tsx** — リプレイ UI (クライアントコンポーネント)。ページ読み込み後に自動再生、方向アイコン列ハイライト、Replay ボタン、3D/2D 切替。
@@ -34,11 +35,13 @@
 - `next.config.ts` で `serverExternalPackages: ["nfc-pcsc", "pcsclite", "better-sqlite3"]` を設定。ネイティブ `.node` アドオンをバンドラーから除外。
 - UI パネル (プログラミング・設定) は統一デザイン: 閉じた状態はアイコンのみ、開いた状態はヘッダー (タイトル+閉じるボタン) + ボディ。NFC 接続ステータスはフッターに表示。
 - NTAG 書き込み: プログラミングパネルで作成したプログラムを NDEF URL レコードとして NTAG カードに書き込み。フッターに目立たないセーブアイコン → モーダルダイアログ → ソナーアニメーションで待機。
-- リプレイページ URL エンコーディング: `/replay?p=UUDLRR&c1=4488ff&c2=ffffff&s=20&pt=0&t=1773557770` (p=プログラム, c1/c2=色, s=幅, pt=パターン, t=作成日時 Unix秒)。
+- リプレイページ URL エンコーディング: `/replay?p=UUDLRR&c1=4488ff&c2=ffffff&s=20&pt=0&t=1773557770&sc=2&sr=2&gc=0&gr=0&ch=5` (p=プログラム, c1/c2=色, s=幅, pt=パターン, t=作成日時 Unix秒, sc/sr=Lv1スタート位置, gc/gr=Lv1ゴール位置, ch=お題の移動数)。Lv1 パラメータは Lv1 モード時のみ付加。
 - `nfc-pcsc` / `better-sqlite3` は `optionalDependencies` に配置し、`lib/nfc.ts` / `lib/db.ts` では動的 `require()` を使用。Vercel 上ではネイティブモジュールが無くてもビルド・デプロイ可能。リプレイページは純粋にクライアントサイドで動作。
 - `NEXT_PUBLIC_BASE_URL` 環境変数で NTAG に書き込む URL のベースドメインを指定 (`.env.local` で設定)。未設定時は `window.location.origin` を使用。
 - NTAG 書き込み成功後のプレビューは常に `localhost` で開く (外部ドメインだとブラウザのポップアップブロックに引っかかるため)。NTAG 自体には `NEXT_PUBLIC_BASE_URL` のドメインが書き込まれる。
 - **middleware.ts**: Vercel 上 (`VERCEL` 環境変数あり) では `/replay` 以外のルートを `/replay` にリライト。ローカル開発には影響なし。
+- **効果音**: Web Audio API のオシレーターで合成。移動音 (上昇ブリップ)、ジャンプ音 (上昇トーン)、壁バンプ音 (低音サッド)、NFC 読み取りチャイム (2音チャイム、プログラミングモードのみ)、成功ファンファーレ (C-E-G-C)。外部オーディオファイル不要。
+- **Lv1 モード (低年齢向け STEAM)**: フッターの Lv1 トグルで ON/OFF。3x3 グリッド上にランダムなスタート (緑) とゴール (オレンジ) のマーカーを配置 (マンハッタン距離 2 以上)。ゴール到達でファンファーレ + 「つぎへ」ボタン (Enter キー)。「お題」ボタン (Tab キー) でランダム経路シミュレーションに基づく目標移動数を提示。プログラミングモードとの連携: Run 実行時はスタート位置から開始、途中ゴール通過なし + 最終到達でクリア判定、New ボタンで新しいスタート/ゴール生成。NTAG 書き込み時に Lv1 パラメータ (スタート/ゴール/お題) を URL に含め、リプレイページでも再現。
 
 ## Deployment
 

@@ -91,6 +91,80 @@ export function Ground() {
   );
 }
 
+/** Pulsing ring marker for start/goal cells */
+export function CellMarker({
+  col,
+  row,
+  color,
+}: {
+  col: number;
+  row: number;
+  color: string;
+}) {
+  const ringRef = useRef<THREE.Mesh>(null);
+  const glowRef = useRef<THREE.Mesh>(null);
+
+  useFrame(() => {
+    if (!ringRef.current || !glowRef.current) return;
+    const t = performance.now() / 1000;
+    ringRef.current.scale.setScalar(0.8 + 0.2 * Math.sin(t * 3));
+    (glowRef.current.material as THREE.MeshStandardMaterial).opacity = 0.15 + 0.1 * Math.sin(t * 3);
+  });
+
+  const x = (col - 1) * CELL_SIZE;
+  const z = (row - 1) * CELL_SIZE;
+
+  return (
+    <group position={[x, 0.02, z]}>
+      <mesh ref={glowRef} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[CELL_SIZE * 0.45, 32]} />
+        <meshStandardMaterial color={color} transparent opacity={0.2} />
+      </mesh>
+      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[CELL_SIZE * 0.3, CELL_SIZE * 0.4, 32]} />
+        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Canvas-based text sprite for start/goal labels */
+export function TextSprite({
+  col,
+  row,
+  text,
+  color,
+}: {
+  col: number;
+  row: number;
+  text: string;
+  color: string;
+}) {
+  const texture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 64;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, 128, 64);
+    ctx.font = "bold 36px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = color;
+    ctx.fillText(text, 64, 32);
+    const tex = new THREE.CanvasTexture(canvas);
+    return tex;
+  }, [text, color]);
+
+  const x = (col - 1) * CELL_SIZE;
+  const z = (row - 1) * CELL_SIZE;
+
+  return (
+    <sprite position={[x, 0.8, z]} scale={[0.7, 0.35, 1]}>
+      <spriteMaterial map={texture} transparent />
+    </sprite>
+  );
+}
+
 export interface AnimState {
   fromX: number;
   fromZ: number;

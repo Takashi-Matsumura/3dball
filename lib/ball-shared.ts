@@ -100,6 +100,49 @@ export function moveGrid(
   return { col, row };
 }
 
+/** Generate a random path from start to goal on the 3x3 grid.
+ *  Sometimes takes detours to make it more interesting. */
+export function generateRandomPath(
+  start: { col: number; row: number },
+  goal: { col: number; row: number },
+): string[] {
+  const DIRS = ["UP", "DOWN", "LEFT", "RIGHT"];
+  const path: string[] = [];
+  let pos = { ...start };
+
+  // Decide if we add detour steps (50% chance, 1-3 extra moves)
+  const detourCount = Math.random() < 0.5 ? 0 : 1 + Math.floor(Math.random() * 3);
+
+  // Add random detour moves first
+  for (let i = 0; i < detourCount; i++) {
+    // Pick a random valid move
+    const valid = DIRS.filter((d) => {
+      const next = moveGrid(pos, d);
+      return next !== null;
+    });
+    if (valid.length === 0) break;
+    const dir = valid[Math.floor(Math.random() * valid.length)];
+    path.push(dir);
+    pos = moveGrid(pos, dir)!;
+  }
+
+  // Now walk toward the goal (greedy with random axis priority)
+  let safety = 20;
+  while ((pos.col !== goal.col || pos.row !== goal.row) && safety-- > 0) {
+    const candidates: string[] = [];
+    if (pos.col < goal.col) candidates.push("RIGHT");
+    if (pos.col > goal.col) candidates.push("LEFT");
+    if (pos.row < goal.row) candidates.push("DOWN");
+    if (pos.row > goal.row) candidates.push("UP");
+    if (candidates.length === 0) break;
+    const dir = candidates[Math.floor(Math.random() * candidates.length)];
+    path.push(dir);
+    pos = moveGrid(pos, dir)!;
+  }
+
+  return path;
+}
+
 const DIRECTION_CHARS: Record<string, string> = { UP: "U", DOWN: "D", LEFT: "L", RIGHT: "R", JUMP: "J" };
 const CHAR_DIRECTIONS: Record<string, string> = { U: "UP", D: "DOWN", L: "LEFT", R: "RIGHT", J: "JUMP" };
 

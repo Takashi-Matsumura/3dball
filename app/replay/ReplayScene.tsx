@@ -7,8 +7,14 @@ import {
   NFC_ICONS,
   moveGrid,
 } from "@/lib/ball-shared";
-import { CameraController, Board, Ground, Sphere } from "@/app/components/Scene";
+import { CameraController, Board, Ground, Sphere, CellMarker, TextSprite } from "@/app/components/Scene";
 import { playMove, playJump, playSuccess } from "@/lib/sounds";
+
+interface Lv1Config {
+  start: { col: number; row: number };
+  goal: { col: number; row: number };
+  challenge?: number;
+}
 
 interface ReplaySceneProps {
   steps: string[];
@@ -17,10 +23,13 @@ interface ReplaySceneProps {
   scale?: number;
   pattern?: number;
   createdAt?: number;
+  lv1?: Lv1Config;
 }
 
-export default function ReplayScene({ steps, color1, color2, scale, pattern, createdAt }: ReplaySceneProps) {
-  const [gridPos, setGridPos] = useState({ col: 1, row: 1 });
+export default function ReplayScene({ steps, color1, color2, scale, pattern, createdAt, lv1 }: ReplaySceneProps) {
+  const startPos = lv1 ? lv1.start : { col: 1, row: 1 };
+  const [gridPos, setGridPos] = useState(startPos);
+  const [lv1Cleared, setLv1Cleared] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [is2D, setIs2D] = useState(false);
   const [jumping, setJumping] = useState(false);
@@ -62,12 +71,14 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
 
   const runProgram = useCallback(async () => {
     setFinished(false);
-    setGridPos({ col: 1, row: 1 });
+    setLv1Cleared(false);
+    setGridPos(startPos);
     setIsAnimating(false);
     setProgIndex(-1);
     await new Promise((r) => setTimeout(r, 100));
 
-    let currentPos = { col: 1, row: 1 };
+    let currentPos = { ...startPos };
+    let passedGoal = false;
     for (let i = 0; i < steps.length; i++) {
       setProgIndex(i);
       const direction = steps[i];
@@ -80,6 +91,10 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
       } else {
         const next = moveGrid(currentPos, direction);
         if (next) {
+          if (lv1 && i < steps.length - 1 &&
+              next.col === lv1.goal.col && next.row === lv1.goal.row) {
+            passedGoal = true;
+          }
           currentPos = next;
           playMove();
           setIsAnimating(true);
@@ -93,8 +108,13 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
     }
     setProgIndex(-1);
     setFinished(true);
+
+    if (lv1 && !passedGoal &&
+        currentPos.col === lv1.goal.col && currentPos.row === lv1.goal.row) {
+      setLv1Cleared(true);
+    }
     playSuccess();
-  }, [steps]);
+  }, [steps, startPos, lv1]);
 
   // Auto-play on mount
   useEffect(() => {
@@ -109,7 +129,7 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
       <div className="absolute bottom-0 left-0 right-0 z-10 bg-black/60 backdrop-blur">
         <div
           ref={stepsRef}
-          className="flex items-center gap-1 px-3 py-2 overflow-x-auto"
+          className="flex items-center justify-center gap-1 px-3 py-2 overflow-x-auto"
         >
           {steps.map((dir, i) => (
             <div
@@ -127,9 +147,25 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
           ))}
         </div>
 
-        {/* Step count */}
-        <div className="text-center text-xs text-white/40 pb-2">
-          {steps.length} steps
+        {/* Step count + Lv1 info */}
+        <div className="text-center pb-2">
+          {lv1 ? (
+            <div className="flex flex-col items-center gap-0.5">
+              {lv1.challenge != null && (
+                <span className="text-sm font-bold text-yellow-300">
+                  {progIndex >= 0 ? progIndex + 1 : (finished ? steps.length : 0)} / {lv1.challenge}
+                </span>
+              )}
+              <span className="text-xs text-yellow-300/70">
+                {lv1.challenge != null
+                  ? `${lv1.challenge} moves to the Goal!`
+                  : "Reach the Goal!"}
+                {lv1Cleared && " ✓"}
+              </span>
+            </div>
+          ) : (
+            <span className="text-xs text-white/40">{steps.length} steps</span>
+          )}
         </div>
       </div>
 
@@ -187,6 +223,14 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
         <pointLight position={[0, 3, 0]} intensity={0.3} color="#aaccff" />
         <Ground />
         <Board />
+        {lv1 && (
+          <>
+            <CellMarker col={lv1.start.col} row={lv1.start.row} color="#44cc44" />
+            <TextSprite col={lv1.start.col} row={lv1.start.row} text="START" color="#44cc44" />
+            <CellMarker col={lv1.goal.col} row={lv1.goal.row} color="#ffaa00" />
+            <TextSprite col={lv1.goal.col} row={lv1.goal.row} text="GOAL" color="#ffaa00" />
+          </>
+        )}
         <Sphere
           gridCol={gridPos.col}
           gridRow={gridPos.row}
