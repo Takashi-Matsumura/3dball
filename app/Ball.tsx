@@ -11,13 +11,15 @@ import {
   NFC_ICONS,
   moveGrid,
   encodeProgram,
-  generateRandomPath,
 } from "@/lib/ball-shared";
 import { CameraController, Board, Ground, Sphere, CellMarker, TextSprite } from "@/app/components/Scene";
 import { playMove, playJump, playBump, playNfcScan, playSuccess, playBurst } from "@/lib/sounds";
+import { useLevel } from "@/lib/useLevel";
+import { gridCenter } from "@/lib/levels";
 
 export default function Ball() {
   const { locale, setLocale, t } = useI18n();
+  const level = useLevel();
   const [gridPos, setGridPos] = useState({ col: 1, row: 1 });
   const [isAnimating, setIsAnimating] = useState(false);
   const [is2D, setIs2D] = useState(false);
@@ -44,52 +46,6 @@ export default function Ball() {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  // Lv1 mode
-  const [lv1Mode, setLv1Mode] = useState(false);
-  const [lv1Start, setLv1Start] = useState({ col: 0, row: 0 });
-  const [lv1Goal, setLv1Goal] = useState({ col: 2, row: 2 });
-  const [lv1Cleared, setLv1Cleared] = useState(false);
-  const [lv1Challenge, setLv1Challenge] = useState<number | null>(null); // target move count
-  const [lv1Moves, setLv1Moves] = useState(0);
-  const lv1MovesRef = useRef(0);
-  const [bursting, setBursting] = useState(false);
-
-  const generateLv1 = useCallback(() => {
-    const positions: { col: number; row: number }[] = [];
-    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) positions.push({ col: c, row: r });
-    const startIdx = Math.floor(Math.random() * positions.length);
-    const start = positions[startIdx];
-    // Goal must be at least 2 steps (Manhattan distance) away
-    const far = positions.filter((p) =>
-      Math.abs(p.col - start.col) + Math.abs(p.row - start.row) >= 2
-    );
-    const goal = far[Math.floor(Math.random() * far.length)];
-    setLv1Start(start);
-    setLv1Goal(goal);
-    setGridPos(start);
-    setLv1Cleared(false);
-    setLv1Challenge(null);
-    setLv1Moves(0);
-    lv1MovesRef.current = 0;
-    setIsAnimating(false);
-  }, []);
-
-  const generateChallenge = useCallback(() => {
-    let count: number;
-    let attempts = 0;
-    do {
-      const path = generateRandomPath(lv1Start, lv1Goal);
-      count = path.length;
-      attempts++;
-    } while (count === lv1Challenge && attempts < 20);
-    setLv1Challenge(count);
-    setLv1Moves(0);
-    lv1MovesRef.current = 0;
-    setGridPos(lv1Start);
-    setLv1Cleared(false);
-    setIsAnimating(false);
-  }, [lv1Start, lv1Goal, lv1Challenge]);
-
   // NTAG write
   const [showNtagModal, setShowNtagModal] = useState(false);
   const [ntagWriting, setNtagWriting] = useState(false);
@@ -108,43 +64,22 @@ export default function Ball() {
   // Keep ref in sync for NFC polling callback
   useEffect(() => { isAnimatingRef.current = isAnimating; }, [isAnimating]);
 
-  // Lv1: count moves, detect goal, and check challenge failure (unified)
-  const lv1PrevPos = useRef(gridPos);
+  // Level: count moves and detect goal/failure (free-move mode)
   useEffect(() => {
-    if (!lv1Mode || lv1Cleared || bursting) return;
-
-    // Count move
-    const prev = lv1PrevPos.current;
-    let moves = lv1MovesRef.current;
-    if (prev.col !== gridPos.col || prev.row !== gridPos.row) {
-      moves = moves + 1;
-      lv1MovesRef.current = moves;
-      setLv1Moves(moves);
-    }
-    lv1PrevPos.current = gridPos;
-
-    // Goal/failure detection only when animation settles (non-programming mode)
+    if (!level.active || level.cleared || level.bursting) return;
+    level.countMove(gridPos);
     if (isAnimating || progMode) return;
-
-    const onGoal = gridPos.col === lv1Goal.col && gridPos.row === lv1Goal.row;
-    if (onGoal) {
-      if (lv1Challenge !== null && moves !== lv1Challenge) {
-        setBursting(true);
-        playBurst();
-      } else {
-        setLv1Cleared(true);
-        playSuccess();
-        setJumping(true);
-        playJump();
-      }
-      return;
-    }
-    // Challenge active: exceeded move count without reaching goal → burst
-    if (lv1Challenge !== null && moves > lv1Challenge) {
-      setBursting(true);
+    const result = level.onFreeMove(gridPos, isAnimating);
+    if (result === "success") {
+      level.setCleared(true);
+      playSuccess();
+      setJumping(true);
+      playJump();
+    } else if (result === "burst") {
+      level.setBursting(true);
       playBurst();
     }
-  }, [gridPos, isAnimating, lv1Mode, lv1Goal, lv1Cleared, progMode, lv1Challenge, bursting]);
+  }, [gridPos, isAnimating, level.active, level.cleared, level.bursting, progMode]);
 
   // Run program step by step
   const animDoneResolveRef = useRef<(() => void) | null>(null);
@@ -154,11 +89,9 @@ export default function Ball() {
   const runProgram = useCallback(async () => {
     if (program.length === 0) return;
     setProgRunning(true);
-    setLv1Cleared(false);
-    setLv1Moves(0);
-    lv1PrevPos.current = lv1Mode ? lv1Start : { col: 1, row: 1 };
-    // Reset ball to start position (Lv1: start, normal: center)
-    const startPos = lv1Mode ? lv1Start : { col: 1, row: 1 };
+
+    // Reset level state or use center
+    const startPos = level.active ? level.resetForRun().startPos : gridCenter(level.gridSize);
     setGridPos(startPos);
     setIsAnimating(false);
     // Wait a frame for reset
@@ -176,18 +109,15 @@ export default function Ball() {
           jumpDoneResolveRef.current = resolve;
         });
       } else {
-        const next = moveGrid(currentPos, direction);
+        const next = moveGrid(currentPos, direction, level.gridSize);
         if (next) {
-          // Check if intermediate step passes through goal (not the last step)
-          if (lv1Mode && i < program.length - 1 &&
-              next.col === lv1Goal.col && next.row === lv1Goal.row) {
+          if (level.active && level.isPassthrough(next, i, program.length)) {
             passedGoal = true;
           }
           currentPos = next;
           playMove();
           setIsAnimating(true);
           setGridPos(next);
-          // Wait for animation to complete
           await new Promise<void>((resolve) => {
             animDoneResolveRef.current = resolve;
           });
@@ -198,30 +128,31 @@ export default function Ball() {
     }
     setProgIndex(-1);
 
-    // Lv1: clear only if ended on goal without passing through it
-    const lv1Success = lv1Mode && !passedGoal &&
-        currentPos.col === lv1Goal.col && currentPos.row === lv1Goal.row;
-    if (lv1Success) {
-      setLv1Cleared(true);
-      playSuccess();
-      setJumping(true);
-      playJump();
-      await new Promise<void>((resolve) => {
-        jumpDoneResolveRef.current = resolve;
-      });
-    } else if (lv1Mode) {
-      // Lv1 failure: burst
-      setBursting(true);
-      playBurst();
-      await new Promise<void>((resolve) => {
-        burstDoneResolveRef.current = resolve;
-      });
+    // Check result
+    if (level.active) {
+      const result = level.checkRunResult(currentPos, passedGoal);
+      if (result === "success") {
+        level.setCleared(true);
+        playSuccess();
+        setJumping(true);
+        playJump();
+        await new Promise<void>((resolve) => {
+          jumpDoneResolveRef.current = resolve;
+        });
+      } else {
+        // burst
+        level.setBursting(true);
+        playBurst();
+        await new Promise<void>((resolve) => {
+          burstDoneResolveRef.current = resolve;
+        });
+      }
     } else {
       playSuccess();
     }
 
     setProgRunning(false);
-  }, [program, lv1Mode, lv1Start, lv1Goal]);
+  }, [program, level]);
 
   const handleOpenNtagModal = useCallback(() => {
     if (program.length === 0 || !nfcConnected) return;
@@ -237,12 +168,9 @@ export default function Ball() {
     if (patternConfig.color2 !== "#ffffff") params.set("c2", patternConfig.color2.replace("#", ""));
     if (patternConfig.scale !== 20) params.set("s", String(patternConfig.scale));
     if (patternConfig.pattern !== 0) params.set("pt", String(patternConfig.pattern));
-    if (lv1Mode) {
-      params.set("sc", String(lv1Start.col));
-      params.set("sr", String(lv1Start.row));
-      params.set("gc", String(lv1Goal.col));
-      params.set("gr", String(lv1Goal.row));
-      if (lv1Challenge !== null) params.set("ch", String(lv1Challenge));
+    if (level.active) {
+      const lvParams = level.getNtagParams();
+      Object.entries(lvParams).forEach(([k, v]) => params.set(k, v));
     }
     params.set("t", String(Math.floor(Date.now() / 1000)));
 
@@ -260,7 +188,6 @@ export default function Ball() {
       const data = await res.json();
       if (data.success) {
         setNtagResult("success");
-        // Open replay locally for dev verification
         const previewUrl = `${window.location.origin}/replay?${params.toString()}`;
         window.open(previewUrl, "_blank");
         setTimeout(() => setShowNtagModal(false), 1500);
@@ -273,7 +200,7 @@ export default function Ball() {
       setNtagWriting(false);
       setTimeout(() => setNtagResult(null), 3000);
     }
-  }, [program, patternConfig, lv1Mode, lv1Start, lv1Goal, lv1Challenge]);
+  }, [program, patternConfig, level]);
 
   const handleCancelWrite = useCallback(() => {
     fetch("/api/nfc/write", { method: "DELETE" });
@@ -353,44 +280,44 @@ export default function Ball() {
   }, []);
 
   const handleBurstDone = useCallback(() => {
-    setBursting(false);
     // Programming mode: resolve the awaited promise
     if (burstDoneResolveRef.current) {
+      level.setBursting(false);
       burstDoneResolveRef.current();
       burstDoneResolveRef.current = null;
-    } else if (lv1Mode) {
+    } else if (level.active) {
       // Free move mode: reset to start
-      lv1PrevPos.current = lv1Start;
-      setGridPos(lv1Start);
-      setLv1Moves(0);
-      lv1MovesRef.current = 0;
+      const resetPos = level.onBurstReset();
+      setGridPos(resetPos);
       setIsAnimating(false);
     }
-  }, [lv1Mode, lv1Start]);
+  }, [level]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      // Escape → exit Lv1 mode
-      if (e.key === "Escape" && lv1Mode) {
+      // Escape → exit level mode
+      if (e.key === "Escape" && level.active) {
         e.preventDefault();
-        setLv1Mode(false);
-        setLv1Cleared(false);
-        setGridPos({ col: 1, row: 1 });
+        const center = level.deactivate();
+        setGridPos(center);
         return;
       }
-      // Tab → generate challenge when Lv1 active
-      if (e.key === "Tab" && lv1Mode && !lv1Cleared) {
+      // Tab → generate challenge when level active
+      if (e.key === "Tab" && level.active && !level.cleared) {
         e.preventDefault();
-        generateChallenge();
+        const pos = level.newChallenge();
+        setGridPos(pos);
+        setIsAnimating(false);
         return;
       }
-      // Enter → next challenge when Lv1 cleared
-      if (e.key === "Enter" && lv1Cleared) {
+      // Enter → next challenge when level cleared
+      if (e.key === "Enter" && level.cleared) {
         e.preventDefault();
-        generateLv1();
+        const pos = level.generate();
+        setGridPos(pos);
         return;
       }
-      if (progMode || isAnimating || bursting) return;
+      if (progMode || isAnimating || level.bursting) return;
       if (e.key === " " || e.code === "Space") {
         e.preventDefault();
         if (!jumping) {
@@ -409,7 +336,7 @@ export default function Ball() {
       if (!direction) return;
       e.preventDefault();
       setGridPos((prev) => {
-        const next = moveGrid(prev, direction);
+        const next = moveGrid(prev, direction, level.gridSize);
         if (!next) {
           playBump();
           return prev;
@@ -419,7 +346,7 @@ export default function Ball() {
         return next;
       });
     },
-    [isAnimating, jumping, progMode, bursting, lv1Mode, lv1Cleared, generateLv1, generateChallenge]
+    [isAnimating, jumping, progMode, level]
   );
 
   useEffect(() => {
@@ -472,10 +399,11 @@ export default function Ball() {
               onClick={() => {
                 setProgram([]);
                 setProgIndex(-1);
-                if (lv1Mode) {
-                  generateLv1();
+                if (level.active) {
+                  const pos = level.generate();
+                  setGridPos(pos);
                 } else {
-                  setGridPos({ col: 1, row: 1 });
+                  setGridPos(gridCenter(level.gridSize));
                 }
               }}
               disabled={progRunning}
@@ -556,39 +484,46 @@ export default function Ball() {
         )}
       </div>
 
-      {/* Lv1 HUD — bottom center, above footer */}
-      {lv1Mode && (
+      {/* Level HUD — bottom center, above footer */}
+      {level.active && (
         <div className="absolute bottom-12 left-0 right-0 z-10 flex flex-col items-center gap-1">
           {/* Move counter — shown when challenge is active and not cleared */}
-          {lv1Challenge !== null && !lv1Cleared && (
+          {level.challenge !== null && !level.cleared && (
             <div className="flex items-center gap-3 text-white/90 text-lg font-bold">
-              <span>{lv1Moves}</span>
+              <span>{level.moves}</span>
               <span className="text-white/40">/</span>
-              <span className="text-yellow-300">{lv1Challenge}</span>
+              <span className="text-yellow-300">{level.challenge}</span>
             </div>
           )}
           {/* Theme text */}
-          {(!lv1Cleared || progMode) && (
+          {(!level.cleared || progMode) && (
             <div className="text-xl font-bold text-yellow-300 drop-shadow-md" style={{ textShadow: "0 0 10px rgba(255,200,0,0.6)" }}>
-              {lv1Challenge !== null
-                ? `${lv1Challenge}${t("lv1ChallengeTheme")}`
+              {level.challenge !== null
+                ? `${level.challenge}${t("lv1ChallengeTheme")}`
                 : t("lv1Theme")}
             </div>
           )}
           {/* Action buttons row */}
           <div className="flex items-center gap-2 mt-1">
-            {(!lv1Cleared || progMode) && (
+            {(!level.cleared || progMode) && (
               <button
-                onClick={generateChallenge}
+                onClick={() => {
+                  const pos = level.newChallenge();
+                  setGridPos(pos);
+                  setIsAnimating(false);
+                }}
                 className="flex items-center gap-1.5 rounded px-3 py-1 text-xs font-bold bg-white/20 text-white/80 hover:bg-white/30 transition backdrop-blur"
               >
                 {t("lv1Challenge")}
                 <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono text-white/60">Tab</kbd>
               </button>
             )}
-            {lv1Cleared && !progMode && (
+            {level.cleared && !progMode && (
               <button
-                onClick={() => generateLv1()}
+                onClick={() => {
+                  const pos = level.generate();
+                  setGridPos(pos);
+                }}
                 className="flex items-center gap-1.5 rounded px-3 py-1 text-xs font-bold bg-yellow-400/80 text-black hover:bg-yellow-400 transition backdrop-blur"
               >
                 {t("nextChallenge")}
@@ -724,17 +659,16 @@ export default function Ball() {
           {!progMode && (
             <button
               onClick={() => {
-                if (lv1Mode) {
-                  setLv1Mode(false);
-                  setLv1Cleared(false);
-                  setGridPos({ col: 1, row: 1 });
+                if (level.active) {
+                  const center = level.deactivate();
+                  setGridPos(center);
                 } else {
-                  setLv1Mode(true);
-                  generateLv1();
+                  const pos = level.activate("lv1");
+                  setGridPos(pos);
                 }
               }}
               className={`rounded px-2 py-0.5 text-xs font-bold transition ${
-                lv1Mode
+                level.active
                   ? "bg-yellow-400 text-black"
                   : "bg-white/20 text-white/60 hover:bg-white/30"
               }`}
@@ -883,24 +817,25 @@ export default function Ball() {
         />
         <pointLight position={[0, 3, 0]} intensity={0.3} color="#aaccff" />
         <Ground />
-        <Board />
-        {lv1Mode && (!lv1Cleared || progMode) && (
+        <Board gridSize={level.gridSize} />
+        {level.active && (!level.cleared || progMode) && (
           <>
-            <CellMarker col={lv1Start.col} row={lv1Start.row} color="#44cc44" />
-            <TextSprite col={lv1Start.col} row={lv1Start.row} text={t("start")} color="#44cc44" />
-            <CellMarker col={lv1Goal.col} row={lv1Goal.row} color="#ffaa00" />
-            <TextSprite col={lv1Goal.col} row={lv1Goal.row} text={t("goal")} color="#ffaa00" />
+            <CellMarker col={level.start.col} row={level.start.row} color="#44cc44" gridSize={level.gridSize} />
+            <TextSprite col={level.start.col} row={level.start.row} text={t("start")} color="#44cc44" gridSize={level.gridSize} />
+            <CellMarker col={level.goal.col} row={level.goal.row} color="#ffaa00" gridSize={level.gridSize} />
+            <TextSprite col={level.goal.col} row={level.goal.row} text={t("goal")} color="#ffaa00" gridSize={level.gridSize} />
           </>
         )}
         <Sphere
           gridCol={gridPos.col}
           gridRow={gridPos.row}
           jumping={jumping}
-          bursting={bursting}
+          bursting={level.bursting}
           onAnimDone={handleAnimDone}
           onJumpDone={handleJumpDone}
           onBurstDone={handleBurstDone}
           patternConfig={patternConfig}
+          gridSize={level.gridSize}
         />
       </Canvas>
     </div>

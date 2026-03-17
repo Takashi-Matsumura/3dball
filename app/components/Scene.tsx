@@ -45,22 +45,23 @@ export function CameraController({ is2D }: { is2D: boolean }) {
   return null;
 }
 
-export function Board() {
-  const boardSize = CELL_SIZE * 3;
+export function Board({ gridSize = 3 }: { gridSize?: number }) {
+  const boardSize = CELL_SIZE * gridSize;
   const borderWidth = 0.15;
   const frameSize = boardSize + borderWidth * 2;
+  const offset = (gridSize - 1) / 2;
 
   const cells = [];
-  for (let row = 0; row < 3; row++) {
-    for (let col = 0; col < 3; col++) {
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
       const isDark = (row + col) % 2 === 0;
       cells.push(
         <mesh
           key={`${row}-${col}`}
           position={[
-            (col - 1) * CELL_SIZE,
+            (col - offset) * CELL_SIZE,
             0.01,
-            (row - 1) * CELL_SIZE,
+            (row - offset) * CELL_SIZE,
           ]}
           rotation={[-Math.PI / 2, 0, 0]}
           receiveShadow
@@ -96,13 +97,16 @@ export function CellMarker({
   col,
   row,
   color,
+  gridSize = 3,
 }: {
   col: number;
   row: number;
   color: string;
+  gridSize?: number;
 }) {
   const ringRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
+  const offset = (gridSize - 1) / 2;
 
   useFrame(() => {
     if (!ringRef.current || !glowRef.current) return;
@@ -111,8 +115,8 @@ export function CellMarker({
     (glowRef.current.material as THREE.MeshStandardMaterial).opacity = 0.15 + 0.1 * Math.sin(t * 3);
   });
 
-  const x = (col - 1) * CELL_SIZE;
-  const z = (row - 1) * CELL_SIZE;
+  const x = (col - offset) * CELL_SIZE;
+  const z = (row - offset) * CELL_SIZE;
 
   return (
     <group position={[x, 0.02, z]}>
@@ -134,11 +138,13 @@ export function TextSprite({
   row,
   text,
   color,
+  gridSize = 3,
 }: {
   col: number;
   row: number;
   text: string;
   color: string;
+  gridSize?: number;
 }) {
   const texture = useMemo(() => {
     const canvas = document.createElement("canvas");
@@ -155,8 +161,9 @@ export function TextSprite({
     return tex;
   }, [text, color]);
 
-  const x = (col - 1) * CELL_SIZE;
-  const z = (row - 1) * CELL_SIZE;
+  const offset = (gridSize - 1) / 2;
+  const x = (col - offset) * CELL_SIZE;
+  const z = (row - offset) * CELL_SIZE;
 
   return (
     <sprite position={[x, 0.8, z]} scale={[0.7, 0.35, 1]}>
@@ -191,6 +198,7 @@ export function Sphere({
   onJumpDone,
   onBurstDone,
   patternConfig,
+  gridSize = 3,
 }: {
   gridCol: number;
   gridRow: number;
@@ -200,6 +208,7 @@ export function Sphere({
   onJumpDone?: () => void;
   onBurstDone?: () => void;
   patternConfig: PatternConfig;
+  gridSize?: number;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const innerRef = useRef<THREE.Group>(null);
@@ -209,6 +218,7 @@ export function Sphere({
   const burstRef = useRef<{ progress: number; particles: BurstParticle[] } | null>(null);
   const prevPos = useRef({ col: gridCol, row: gridRow });
   const cumulativeRotation = useRef(new THREE.Quaternion());
+  const gridOffset = (gridSize - 1) / 2;
 
   const ANIM_SPEED = 4;
   const JUMP_SPEED = 3;
@@ -251,10 +261,10 @@ export function Sphere({
     const prevRow = prevPos.current.row;
     if (prevCol === gridCol && prevRow === gridRow) return;
 
-    const fromX = (prevCol - 1) * CELL_SIZE;
-    const fromZ = (prevRow - 1) * CELL_SIZE;
-    const toX = (gridCol - 1) * CELL_SIZE;
-    const toZ = (gridRow - 1) * CELL_SIZE;
+    const fromX = (prevCol - gridOffset) * CELL_SIZE;
+    const fromZ = (prevRow - gridOffset) * CELL_SIZE;
+    const toX = (gridCol - gridOffset) * CELL_SIZE;
+    const toZ = (gridRow - gridOffset) * CELL_SIZE;
 
     const dx = gridCol - prevCol;
     const dz = gridRow - prevRow;
@@ -392,8 +402,8 @@ export function Sphere({
     [patternConfig.color1],
   );
 
-  const initX = (gridCol - 1) * CELL_SIZE;
-  const initZ = (gridRow - 1) * CELL_SIZE;
+  const initX = (gridCol - gridOffset) * CELL_SIZE;
+  const initZ = (gridRow - gridOffset) * CELL_SIZE;
 
   return (
     <group ref={groupRef} position={[initX, BALL_RADIUS, initZ]}>

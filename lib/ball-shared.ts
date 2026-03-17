@@ -78,20 +78,22 @@ export const NFC_ICONS: Record<string, string> = { UP: "⬆", DOWN: "⬇", LEFT:
 export function moveGrid(
   prev: { col: number; row: number },
   direction: string,
+  gridSize: number = 3,
 ): { col: number; row: number } | null {
+  const maxIdx = gridSize - 1;
   let { col, row } = prev;
   switch (direction) {
     case "UP":
       row = Math.max(0, row - 1);
       break;
     case "DOWN":
-      row = Math.min(2, row + 1);
+      row = Math.min(maxIdx, row + 1);
       break;
     case "LEFT":
       col = Math.max(0, col - 1);
       break;
     case "RIGHT":
-      col = Math.min(2, col + 1);
+      col = Math.min(maxIdx, col + 1);
       break;
     default:
       return null;
@@ -105,6 +107,7 @@ export function moveGrid(
 export function generateRandomPath(
   start: { col: number; row: number },
   goal: { col: number; row: number },
+  gridSize: number = 3,
 ): string[] {
   const DIRS = ["UP", "DOWN", "LEFT", "RIGHT"];
   const path: string[] = [];
@@ -117,13 +120,13 @@ export function generateRandomPath(
   for (let i = 0; i < detourCount; i++) {
     // Pick a random valid move
     const valid = DIRS.filter((d) => {
-      const next = moveGrid(pos, d);
+      const next = moveGrid(pos, d, gridSize);
       return next !== null;
     });
     if (valid.length === 0) break;
     const dir = valid[Math.floor(Math.random() * valid.length)];
     path.push(dir);
-    pos = moveGrid(pos, dir)!;
+    pos = moveGrid(pos, dir, gridSize)!;
   }
 
   // Now walk toward the goal (greedy with random axis priority)
@@ -137,7 +140,7 @@ export function generateRandomPath(
     if (candidates.length === 0) break;
     const dir = candidates[Math.floor(Math.random() * candidates.length)];
     path.push(dir);
-    pos = moveGrid(pos, dir)!;
+    pos = moveGrid(pos, dir, gridSize)!;
   }
 
   return path;

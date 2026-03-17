@@ -12,10 +12,12 @@
 
 ## Architecture
 
-- **lib/ball-shared.ts** — 共有ロジック (React 非依存)。定数 (`CELL_SIZE`, `BALL_RADIUS`, `COLOR_PRESETS`, カメラプリセット, `NFC_DIRECTIONS`, `NFC_ICONS`)、`PatternConfig` インターフェース、`makeShaderMaterial()`、`moveGrid()`、`encodeProgram()` / `decodeProgram()`、`generateRandomPath()`。
-- **lib/sounds.ts** — Web Audio API による合成効果音 (外部ファイル不要)。`playMove()`, `playJump()`, `playBump()`, `playNfcScan()`, `playSuccess()`。
-- **app/components/Scene.tsx** — 共有 3D コンポーネント (`CameraController`, `Board`, `Ground`, `Sphere`, `CellMarker`, `TextSprite`)。Ball.tsx とリプレイページの両方で使用。`CameraController` はアスペクト比に応じてカメラ距離を自動調整 (縦画面対応)。`CellMarker` はパルスリングマーカー、`TextSprite` はキャンバスベースのテキストスプライト (Lv1 のスタート/ゴール表示用)。
-- **app/Ball.tsx** — メインの 3D シーン。NFC ポーリング、キーボード操作、プログラミングモード、NTAG 書き込みモーダルを含む。共有モジュールからインポート。
+- **lib/ball-shared.ts** — 共有ロジック (React 非依存)。定数 (`CELL_SIZE`, `BALL_RADIUS`, `COLOR_PRESETS`, カメラプリセット, `NFC_DIRECTIONS`, `NFC_ICONS`)、`PatternConfig` インターフェース、`makeShaderMaterial()`、`moveGrid(gridSize)`、`encodeProgram()` / `decodeProgram()`、`generateRandomPath(gridSize)`。
+- **lib/levels.ts** — レベル定義 (React 非依存)。`LevelConfig` インターフェース、`LEVELS` レジストリ、`generateStartGoal()`、`generateChallengeCount()`、`gridCenter()`、`checkMoveResult()`、`checkProgramResult()`、`buildLevelNtagParams()`。新レベル追加時はここに `LevelConfig` エントリを追加する。
+- **lib/useLevel.ts** — レベル状態管理フック。`activate(levelId)` / `deactivate()` でレベル ON/OFF。スタート/ゴール生成、移動カウント、お題、クリア/バースト判定、NTAG パラメータ構築をカプセル化。Ball.tsx から `level.active`, `level.start`, `level.goal` 等で参照。
+- **lib/sounds.ts** — Web Audio API による合成効果音 (外部ファイル不要)。`playMove()`, `playJump()`, `playBump()`, `playNfcScan()`, `playSuccess()`, `playBurst()`。
+- **app/components/Scene.tsx** — 共有 3D コンポーネント (`CameraController`, `Board`, `Ground`, `Sphere`, `CellMarker`, `TextSprite`)。Ball.tsx とリプレイページの両方で使用。`CameraController` はアスペクト比に応じてカメラ距離を自動調整 (縦画面対応)。`CellMarker` はパルスリングマーカー、`TextSprite` はキャンバスベースのテキストスプライト (レベルのスタート/ゴール表示用)。すべてのコンポーネントが `gridSize` パラメータで可変グリッドサイズに対応。`Sphere` はバーストアニメーション (パーティクル散乱) を内蔵。
+- **app/Ball.tsx** — メインの 3D シーン。NFC ポーリング、キーボード操作、プログラミングモード、NTAG 書き込みモーダルを含む。レベルロジックは `useLevel` フックに委譲。
 - **app/replay/page.tsx** — リプレイページ (サーバーコンポーネント)。URL パラメータからプログラムを読み取り `ReplayScene` に渡す。
 - **app/replay/ReplayScene.tsx** — リプレイ UI (クライアントコンポーネント)。ページ読み込み後に自動再生、方向アイコン列ハイライト、Replay ボタン、3D/2D 切替。
 - **app/nfc/** — NFC カード登録ページ (UID ベースのマッピング)
@@ -23,7 +25,7 @@
 - **app/api/nfc/write/** — NTAG NDEF URL 書き込み API ルート
 - **lib/nfc.ts** — nfc-pcsc シングルトン。FeliCa カード対応 (UID マッピング方式) + NTAG NDEF URL 書き込み。動的 require で Vercel 互換。
 - **lib/db.ts** — better-sqlite3 による NFC カード登録の永続化 (`data/nfc.db`)。動的 require で Vercel 互換。
-- **lib/i18n.tsx** — i18n (ja/en)。リプレイページ・NTAG 書き込み関連のキーを含む。
+- **lib/i18n.tsx** — i18n (ja/en/es)。リプレイページ・NTAG 書き込み関連のキーを含む。
 
 ## Key Design Decisions
 
@@ -40,8 +42,9 @@
 - `NEXT_PUBLIC_BASE_URL` 環境変数で NTAG に書き込む URL のベースドメインを指定 (`.env.local` で設定)。未設定時は `window.location.origin` を使用。
 - NTAG 書き込み成功後のプレビューは常に `localhost` で開く (外部ドメインだとブラウザのポップアップブロックに引っかかるため)。NTAG 自体には `NEXT_PUBLIC_BASE_URL` のドメインが書き込まれる。
 - **middleware.ts**: Vercel 上 (`VERCEL` 環境変数あり) では `/replay` 以外のルートを `/replay` にリライト。ローカル開発には影響なし。
-- **効果音**: Web Audio API のオシレーターで合成。移動音 (上昇ブリップ)、ジャンプ音 (上昇トーン)、壁バンプ音 (低音サッド)、NFC 読み取りチャイム (2音チャイム、プログラミングモードのみ)、成功ファンファーレ (C-E-G-C)。外部オーディオファイル不要。
-- **Lv1 モード (低年齢向け STEAM)**: フッターの Lv1 トグルで ON/OFF。3x3 グリッド上にランダムなスタート (緑) とゴール (オレンジ) のマーカーを配置 (マンハッタン距離 2 以上)。ゴール到達でファンファーレ + 「つぎへ」ボタン (Enter キー)。「お題」ボタン (Tab キー) でランダム経路シミュレーションに基づく目標移動数を提示。プログラミングモードとの連携: Run 実行時はスタート位置から開始、途中ゴール通過なし + 最終到達でクリア判定、New ボタンで新しいスタート/ゴール生成。NTAG 書き込み時に Lv1 パラメータ (スタート/ゴール/お題) を URL に含め、リプレイページでも再現。
+- **効果音**: Web Audio API のオシレーターで合成。移動音 (上昇ブリップ)、ジャンプ音 (上昇トーン)、壁バンプ音 (低音サッド)、NFC 読み取りチャイム (2音チャイム、プログラミングモードのみ)、成功ファンファーレ (C-E-G-C)、バースト音 (破裂ポップ)。外部オーディオファイル不要。
+- **レベルシステム**: `lib/levels.ts` で `LevelConfig` を定義し、`lib/useLevel.ts` フックでレベル状態を管理。`Ball.tsx` はレベル固有ロジックを持たず、フックのインターフェースのみに依存。新レベル追加は `LEVELS` レジストリにエントリを追加するだけ。`moveGrid()`, `Board`, `Sphere` 等すべて `gridSize` パラメータで可変グリッドに対応済み。
+- **Lv1 モード (低年齢向け STEAM)**: フッターの Lv1 トグルで ON/OFF (Escape キーで解除)。3x3 グリッド上にランダムなスタート (緑) とゴール (オレンジ) のマーカーを配置 (マンハッタン距離 2 以上)。ゴール到達でファンファーレ + 自動ジャンプ + 「つぎへ」ボタン (Enter キー)。「お題」ボタン (Tab キー) でランダム経路シミュレーションに基づく目標移動数を提示。お題と移動数が不一致でゴール、または移動数超過で**バーストアニメーション** (膨張→パーティクル散乱) + スタートリセット。プログラミングモードとの連携: Run 実行時はスタート位置から開始、途中ゴール通過なし + 最終到達でクリア判定 (失敗時もバースト)、New ボタンで新しいスタート/ゴール生成。NTAG 書き込み時にレベルパラメータ (スタート/ゴール/お題) を URL に含め、リプレイページでも再現。
 
 ## Deployment
 
