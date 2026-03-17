@@ -103,6 +103,22 @@ export function playBurst() {
   noise.stop(c.currentTime + 0.3);
 }
 
+/** Branch trigger — short up-down sweep */
+export function playBranch() {
+  const c = getCtx();
+  const osc = c.createOscillator();
+  const gain = c.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(500, c.currentTime);
+  osc.frequency.linearRampToValueAtTime(900, c.currentTime + 0.08);
+  osc.frequency.linearRampToValueAtTime(600, c.currentTime + 0.16);
+  gain.gain.setValueAtTime(0.2, c.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.2);
+  osc.connect(gain).connect(c.destination);
+  osc.start(c.currentTime);
+  osc.stop(c.currentTime + 0.2);
+}
+
 /** Success fanfare — program complete or goal reached */
 export function playSuccess() {
   const c = getCtx();

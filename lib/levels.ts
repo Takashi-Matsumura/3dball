@@ -6,6 +6,7 @@ export interface LevelConfig {
   minDistance: number;
   hasChallenge: boolean;
   obstacleCount?: { min: number; max: number };
+  branchCount?: { min: number; max: number };
   /** i18n key for theme text (e.g. "lv1Theme") */
   themeKey: string;
   /** i18n key for challenge theme text (e.g. "lv1ChallengeTheme") */
@@ -14,9 +15,17 @@ export interface LevelConfig {
   labelKey: string;
 }
 
+export interface BranchCell {
+  col: number;
+  row: number;
+  horizontalBranch: "UP" | "DOWN";    // arriving horizontally → branch vertically
+  verticalBranch: "LEFT" | "RIGHT";   // arriving vertically → branch horizontally
+}
+
 export const LEVELS: Record<string, LevelConfig> = {
   lv1: { id: "lv1", gridSize: 3, minDistance: 2, hasChallenge: true, themeKey: "lv1Theme", challengeThemeKey: "lv1ChallengeTheme", labelKey: "lv1" },
   lv2: { id: "lv2", gridSize: 5, minDistance: 4, hasChallenge: true, obstacleCount: { min: 2, max: 4 }, themeKey: "lv2Theme", challengeThemeKey: "lv2ChallengeTheme", labelKey: "lv2" },
+  lv3: { id: "lv3", gridSize: 5, minDistance: 4, hasChallenge: true, obstacleCount: { min: 1, max: 3 }, branchCount: { min: 1, max: 2 }, themeKey: "lv3Theme", challengeThemeKey: "lv3ChallengeTheme", labelKey: "lv3" },
 };
 
 export type GridPos = { col: number; row: number };
@@ -88,11 +97,49 @@ export function generateObstacles(
   return []; // fallback: no obstacles
 }
 
-/** Generate start, goal, and obstacles for a level */
-export function generateLevel(config: LevelConfig): { start: GridPos; goal: GridPos; obstacles: GridPos[] } {
+/** Generate random branch cells for a level, ensuring branches don't overlap with start/goal/obstacles */
+export function generateBranchCells(
+  config: LevelConfig,
+  start: GridPos,
+  goal: GridPos,
+  obstacles: GridPos[],
+): BranchCell[] {
+  if (!config.branchCount) return [];
+  const { min, max } = config.branchCount;
+  const count = min + Math.floor(Math.random() * (max - min + 1));
+  const { gridSize } = config;
+
+  const used = new Set<string>();
+  used.add(`${start.col},${start.row}`);
+  used.add(`${goal.col},${goal.row}`);
+  for (const o of obstacles) used.add(`${o.col},${o.row}`);
+
+  const cells: BranchCell[] = [];
+  for (let i = 0; i < count; i++) {
+    for (let t = 0; t < 30; t++) {
+      const col = Math.floor(Math.random() * gridSize);
+      const row = Math.floor(Math.random() * gridSize);
+      const k = `${col},${row}`;
+      if (used.has(k)) continue;
+      used.add(k);
+      cells.push({
+        col,
+        row,
+        horizontalBranch: Math.random() < 0.5 ? "UP" : "DOWN",
+        verticalBranch: Math.random() < 0.5 ? "LEFT" : "RIGHT",
+      });
+      break;
+    }
+  }
+  return cells;
+}
+
+/** Generate start, goal, obstacles, and branch cells for a level */
+export function generateLevel(config: LevelConfig): { start: GridPos; goal: GridPos; obstacles: GridPos[]; branchCells: BranchCell[] } {
   const { start, goal } = generateStartGoal(config);
   const obstacles = generateObstacles(config, start, goal);
-  return { start, goal, obstacles };
+  const branchCells = generateBranchCells(config, start, goal, obstacles);
+  return { start, goal, obstacles, branchCells };
 }
 
 /** Generate random start/goal positions for a level */
@@ -185,6 +232,29 @@ export function decodeObstacles(encoded: string): GridPos[] {
   return obstacles;
 }
 
+/** Encode branch cells: "12UD" = col1,row2,hBranch=UP,vBranch=DOWN (U/D for hBranch, L/R for vBranch) */
+export function encodeBranchCells(cells: BranchCell[]): string {
+  return cells.map((c) => {
+    const h = c.horizontalBranch === "UP" ? "U" : "D";
+    const v = c.verticalBranch === "LEFT" ? "L" : "R";
+    return `${c.col}${c.row}${h}${v}`;
+  }).join("");
+}
+
+/** Decode branch cells from compact string */
+export function decodeBranchCells(encoded: string): BranchCell[] {
+  const cells: BranchCell[] = [];
+  for (let i = 0; i + 3 < encoded.length; i += 4) {
+    cells.push({
+      col: Number(encoded[i]),
+      row: Number(encoded[i + 1]),
+      horizontalBranch: encoded[i + 2] === "U" ? "UP" : "DOWN",
+      verticalBranch: encoded[i + 3] === "L" ? "LEFT" : "RIGHT",
+    });
+  }
+  return cells;
+}
+
 /** Build NTAG URL params for a level */
 export function buildLevelNtagParams(
   config: LevelConfig,
@@ -192,6 +262,7 @@ export function buildLevelNtagParams(
   goal: GridPos,
   challenge: number | null,
   obstacles: GridPos[] = [],
+  branchCells: BranchCell[] = [],
 ): Record<string, string> {
   const params: Record<string, string> = {
     lv: config.id,
@@ -202,5 +273,6 @@ export function buildLevelNtagParams(
   };
   if (challenge !== null) params.ch = String(challenge);
   if (obstacles.length > 0) params.ob = encodeObstacles(obstacles);
+  if (branchCells.length > 0) params.br = encodeBranchCells(branchCells);
   return params;
 }

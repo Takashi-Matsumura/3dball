@@ -11,6 +11,7 @@ import {
   makeShaderMaterial,
   PatternConfig,
 } from "@/lib/ball-shared";
+import { BranchCell } from "@/lib/levels";
 
 export function CameraController({ is2D, gridSize = 3 }: { is2D: boolean; gridSize?: number }) {
   const { camera, size } = useThree();
@@ -221,6 +222,57 @@ export function ObstacleMarker({
       <mesh castShadow>
         <boxGeometry args={[blockSize, blockHeight, blockSize]} />
         <meshStandardMaterial color="#cc3333" transparent opacity={0.7} roughness={0.5} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Branch cell marker — pulsing "?" on the board surface, same style as CellMarker */
+export function BranchMarker({
+  branchCell,
+  gridSize = 5,
+}: {
+  branchCell: BranchCell;
+  gridSize?: number;
+  highlightDir?: string | null;
+}) {
+  const glowRef = useRef<THREE.Mesh>(null);
+  const offset = (gridSize - 1) / 2;
+  const x = (branchCell.col - offset) * CELL_SIZE;
+  const z = (branchCell.row - offset) * CELL_SIZE;
+  const color = "#bb66ff";
+
+  useFrame(() => {
+    if (!glowRef.current) return;
+    const t = performance.now() / 1000;
+    (glowRef.current.material as THREE.MeshStandardMaterial).opacity = 0.18 + 0.1 * Math.sin(t * 3);
+  });
+
+  const texture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, 128, 128);
+    ctx.font = "bold 96px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = color;
+    ctx.fillText("?", 64, 64);
+    return new THREE.CanvasTexture(canvas);
+  }, []);
+
+  return (
+    <group position={[x, 0.02, z]}>
+      {/* Pulsing glow circle */}
+      <mesh ref={glowRef} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[CELL_SIZE * 0.45, 32]} />
+        <meshStandardMaterial color={color} transparent opacity={0.2} />
+      </mesh>
+      {/* "?" decal on the board */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <planeGeometry args={[CELL_SIZE * 0.7, CELL_SIZE * 0.7]} />
+        <meshStandardMaterial map={texture} transparent />
       </mesh>
     </group>
   );

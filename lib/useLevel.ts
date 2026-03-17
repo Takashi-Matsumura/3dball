@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import {
   LevelConfig,
   LEVELS,
   GridPos,
+  BranchCell,
   generateLevel,
   generateChallengeCount,
   gridCenter,
@@ -22,6 +23,8 @@ export interface LevelState {
   start: GridPos;
   goal: GridPos;
   obstacles: GridPos[];
+  branchCells: BranchCell[];
+  lastMoveDirection: string | null;
   cleared: boolean;
   challenge: number | null;
   moves: number;
@@ -48,6 +51,8 @@ export interface LevelState {
   setBursting: (v: boolean) => void;
   /** Build NTAG params for this level */
   getNtagParams: () => Record<string, string>;
+  /** Check if pos is on a branch cell and return branch direction based on arrival direction */
+  checkBranch: (pos: GridPos) => { isBranch: boolean; branchDir: string | null };
 }
 
 export function useLevel(): LevelState {
@@ -56,6 +61,8 @@ export function useLevel(): LevelState {
   const [start, setStart] = useState<GridPos>({ col: 0, row: 0 });
   const [goal, setGoal] = useState<GridPos>({ col: 2, row: 2 });
   const [obstacles, setObstacles] = useState<GridPos[]>([]);
+  const [branchCells, setBranchCells] = useState<BranchCell[]>([]);
+  const lastMoveDirRef = useRef<string | null>(null);
   const [cleared, setCleared] = useState(false);
   const [challenge, setChallenge] = useState<number | null>(null);
   const [moves, setMoves] = useState(0);
@@ -72,10 +79,12 @@ export function useLevel(): LevelState {
     if (!cfg) return gridCenter(3);
     setLevelId(id);
     setConfig(cfg);
-    const { start: s, goal: g, obstacles: obs } = generateLevel(cfg);
+    const { start: s, goal: g, obstacles: obs, branchCells: br } = generateLevel(cfg);
     setStart(s);
     setGoal(g);
     setObstacles(obs);
+    setBranchCells(br);
+    lastMoveDirRef.current = null;
     setCleared(false);
     setChallenge(null);
     setMoves(0);
@@ -88,6 +97,8 @@ export function useLevel(): LevelState {
     setLevelId(null);
     setConfig(null);
     setObstacles([]);
+    setBranchCells([]);
+    lastMoveDirRef.current = null;
     setCleared(false);
     setChallenge(null);
     setBursting(false);
@@ -96,10 +107,12 @@ export function useLevel(): LevelState {
 
   const generate = useCallback((): GridPos => {
     if (!config) return gridCenter(3);
-    const { start: s, goal: g, obstacles: obs } = generateLevel(config);
+    const { start: s, goal: g, obstacles: obs, branchCells: br } = generateLevel(config);
     setStart(s);
     setGoal(g);
     setObstacles(obs);
+    setBranchCells(br);
+    lastMoveDirRef.current = null;
     setCleared(false);
     setChallenge(null);
     setMoves(0);
@@ -115,6 +128,7 @@ export function useLevel(): LevelState {
     setMoves(0);
     movesRef.current = 0;
     setCleared(false);
+    lastMoveDirRef.current = null;
     prevPosRef.current = start;
     return start;
   }, [config, start, goal, challenge, obstacles]);
@@ -133,6 +147,13 @@ export function useLevel(): LevelState {
       const next = movesRef.current + 1;
       movesRef.current = next;
       setMoves(next);
+      // Track direction from position delta (ref for immediate availability)
+      const dc = pos.col - prev.col;
+      const dr = pos.row - prev.row;
+      if (dc > 0) lastMoveDirRef.current = "RIGHT";
+      else if (dc < 0) lastMoveDirRef.current = "LEFT";
+      else if (dr > 0) lastMoveDirRef.current = "DOWN";
+      else if (dr < 0) lastMoveDirRef.current = "UP";
     }
     prevPosRef.current = pos;
   }, []);
@@ -157,14 +178,24 @@ export function useLevel(): LevelState {
     setBursting(false);
     setMoves(0);
     movesRef.current = 0;
+    lastMoveDirRef.current = null;
     prevPosRef.current = start;
     return start;
   }, [start]);
 
+  const checkBranch = useCallback((pos: GridPos): { isBranch: boolean; branchDir: string | null } => {
+    const cell = branchCells.find((c) => c.col === pos.col && c.row === pos.row);
+    const dir = lastMoveDirRef.current;
+    if (!cell || !dir) return { isBranch: false, branchDir: null };
+    const isHorizontal = dir === "LEFT" || dir === "RIGHT";
+    const branchDir = isHorizontal ? cell.horizontalBranch : cell.verticalBranch;
+    return { isBranch: true, branchDir };
+  }, [branchCells]);
+
   const getNtagParams = useCallback((): Record<string, string> => {
     if (!config) return {};
-    return buildLevelNtagParams(config, start, goal, challenge, obstacles);
-  }, [config, start, goal, challenge, obstacles]);
+    return buildLevelNtagParams(config, start, goal, challenge, obstacles, branchCells);
+  }, [config, start, goal, challenge, obstacles, branchCells]);
 
   return {
     active,
@@ -173,6 +204,8 @@ export function useLevel(): LevelState {
     start,
     goal,
     obstacles,
+    branchCells,
+    lastMoveDirection: lastMoveDirRef.current,
     cleared,
     challenge,
     moves,
@@ -191,5 +224,6 @@ export function useLevel(): LevelState {
     setCleared,
     setBursting,
     getNtagParams,
+    checkBranch,
   };
 }

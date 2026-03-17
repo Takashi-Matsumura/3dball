@@ -14,8 +14,8 @@ import {
   groupProgramForDisplay,
   displayStepsToFlat,
 } from "@/lib/ball-shared";
-import { SceneLighting, CameraController, Board, Ground, Sphere, CellMarker, TextSprite, ObstacleMarker } from "@/app/components/Scene";
-import { playMove, playJump, playBump, playNfcScan, playSuccess, playBurst } from "@/lib/sounds";
+import { SceneLighting, CameraController, Board, Ground, Sphere, CellMarker, TextSprite, ObstacleMarker, BranchMarker } from "@/app/components/Scene";
+import { playMove, playJump, playBump, playNfcScan, playSuccess, playBurst, playBranch } from "@/lib/sounds";
 import { useLevel } from "@/lib/useLevel";
 import { useProgramRunner } from "@/lib/useProgramRunner";
 import { gridCenter, LEVELS } from "@/lib/levels";
@@ -69,11 +69,47 @@ export default function Ball() {
   // Keep ref in sync for NFC polling callback
   useEffect(() => { isAnimatingRef.current = isAnimating; }, [isAnimating]);
 
-  // Level: count moves and detect goal/failure (free-move mode)
+  // Consecutive branch counter for deadlock detection
+  const branchChainRef = useRef(0);
+
+  // Level: count moves, detect goal/failure, and auto-branch on "?" cells (free-move mode)
   useEffect(() => {
     if (!level.active || level.cleared || level.bursting) return;
     level.countMove(gridPos);
     if (isAnimating || progMode) return;
+
+    // Check for auto-branch on "?" cell
+    const { isBranch, branchDir } = level.checkBranch(gridPos);
+    if (isBranch && branchDir && !jumping) {
+      branchChainRef.current += 1;
+      // Deadlock: 7 consecutive branches → burst
+      if (branchChainRef.current >= 7) {
+        branchChainRef.current = 0;
+        level.setBursting(true);
+        playBurst();
+        return;
+      }
+      setJumping(true);
+      playBranch();
+      const tryMove = moveGrid(gridPos, branchDir, level.gridSize, level.obstacles);
+      if (tryMove) {
+        setTimeout(() => {
+          setGridPos(tryMove);
+          setIsAnimating(true);
+          playMove();
+        }, 300);
+      } else {
+        // Blocked — bump but keep chain counting
+        setTimeout(() => playBump(), 300);
+      }
+      return;
+    }
+
+    // Non-branch cell reached — reset chain counter
+    if (!isBranch) {
+      branchChainRef.current = 0;
+    }
+
     const result = level.onFreeMove(gridPos, isAnimating);
     if (result === "success") {
       level.setCleared(true);
@@ -84,7 +120,7 @@ export default function Ball() {
       level.setBursting(true);
       playBurst();
     }
-  }, [gridPos, isAnimating, level.active, level.cleared, level.bursting, progMode]);
+  }, [gridPos, isAnimating, level.active, level.cleared, level.bursting, progMode, jumping]);
 
   // Run program step by step
   const burstDoneResolveRef = useRef<(() => void) | null>(null);
@@ -840,7 +876,10 @@ export default function Ball() {
             <CellMarker col={level.goal.col} row={level.goal.row} color="#ffaa00" gridSize={level.gridSize} />
             <TextSprite col={level.goal.col} row={level.goal.row} text={t("goal")} color="#ffaa00" gridSize={level.gridSize} />
             {level.obstacles.map((ob, i) => (
-              <ObstacleMarker key={i} col={ob.col} row={ob.row} gridSize={level.gridSize} />
+              <ObstacleMarker key={`ob-${i}`} col={ob.col} row={ob.row} gridSize={level.gridSize} />
+            ))}
+            {level.branchCells.map((bc, i) => (
+              <BranchMarker key={`br-${i}`} branchCell={bc} gridSize={level.gridSize} />
             ))}
           </>
         )}

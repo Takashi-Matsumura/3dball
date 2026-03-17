@@ -64,6 +64,11 @@ const translations = {
   lv2Theme: { ja: "障害物をさけてゴール！", en: "Avoid obstacles!", es: "\u00a1Evita obst\u00e1culos!" },
   lv2ChallengeTheme: { ja: "回で障害物をさけてゴール！", en: " moves, avoid obstacles!", es: " movimientos, \u00a1evita!" },
 
+  // Lv3 mode
+  lv3: { ja: "Lv3", en: "Lv3", es: "Lv3" },
+  lv3Theme: { ja: "？で分岐してゴール！", en: "Branch at ? to Goal!", es: "¡Bifurca en ? a la meta!" },
+  lv3ChallengeTheme: { ja: "回で？を使ってゴール！", en: " moves, use ? to Goal!", es: " movimientos, ¡usa ?!" },
+
   // Loop cards
   dirX2: { ja: "×2 (くりかえし)", en: "\u00d72 (Repeat)", es: "\u00d72 (Repetir)" },
   dirX3: { ja: "×3 (くりかえし)", en: "\u00d73 (Repeat)", es: "\u00d73 (Repetir)" },
