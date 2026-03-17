@@ -6,7 +6,7 @@ import { useI18n } from "@/lib/i18n";
 
 interface ActionDef {
   id: string;
-  labelKey: "dirUp" | "dirDown" | "dirLeft" | "dirRight" | "dirJump";
+  labelKey: "dirUp" | "dirDown" | "dirLeft" | "dirRight" | "dirJump" | "dirX2" | "dirX3";
   icon: string;
   bgColor: string;
   borderColor: string;
@@ -14,11 +14,13 @@ interface ActionDef {
 }
 
 const ACTIONS: ActionDef[] = [
-  { id: "UP",    labelKey: "dirUp",    icon: "⬆", bgColor: "bg-blue-100",   borderColor: "border-blue-400",   textColor: "text-blue-700" },
-  { id: "DOWN",  labelKey: "dirDown",  icon: "⬇", bgColor: "bg-orange-100", borderColor: "border-orange-400", textColor: "text-orange-700" },
-  { id: "LEFT",  labelKey: "dirLeft",  icon: "⬅", bgColor: "bg-purple-100", borderColor: "border-purple-400", textColor: "text-purple-700" },
-  { id: "RIGHT", labelKey: "dirRight", icon: "➡", bgColor: "bg-green-100",  borderColor: "border-green-400",  textColor: "text-green-700" },
-  { id: "JUMP",  labelKey: "dirJump",  icon: "⤴", bgColor: "bg-yellow-100", borderColor: "border-yellow-400", textColor: "text-yellow-700" },
+  { id: "UP",    labelKey: "dirUp",    icon: "⬆",  bgColor: "bg-blue-100",   borderColor: "border-blue-400",   textColor: "text-blue-700" },
+  { id: "DOWN",  labelKey: "dirDown",  icon: "⬇",  bgColor: "bg-orange-100", borderColor: "border-orange-400", textColor: "text-orange-700" },
+  { id: "LEFT",  labelKey: "dirLeft",  icon: "⬅",  bgColor: "bg-purple-100", borderColor: "border-purple-400", textColor: "text-purple-700" },
+  { id: "RIGHT", labelKey: "dirRight", icon: "➡",  bgColor: "bg-green-100",  borderColor: "border-green-400",  textColor: "text-green-700" },
+  { id: "JUMP",  labelKey: "dirJump",  icon: "⤴",  bgColor: "bg-yellow-100", borderColor: "border-yellow-400", textColor: "text-yellow-700" },
+  { id: "X2",    labelKey: "dirX2",    icon: "×2", bgColor: "bg-pink-100",   borderColor: "border-pink-400",   textColor: "text-pink-700" },
+  { id: "X3",    labelKey: "dirX3",    icon: "×3", bgColor: "bg-red-100",    borderColor: "border-red-400",    textColor: "text-red-700" },
 ];
 
 interface RegisteredCard {
@@ -147,8 +149,8 @@ export default function NfcWriter() {
           </span>
         </div>
 
-        {/* Action cards */}
-        <div className="flex flex-col gap-3">
+        {/* Action cards — tile grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {ACTIONS.map((action) => {
             const uid = getCardUid(action.id);
             const isRegistering = registeringId === action.id;
@@ -156,28 +158,21 @@ export default function NfcWriter() {
             return (
               <div
                 key={action.id}
-                className={`flex items-center gap-4 px-5 py-4 rounded-xl border-2 transition-all ${
+                className={`flex flex-col items-center gap-2 px-3 py-4 rounded-xl border-2 transition-all ${
                   uid ? `${action.bgColor} ${action.borderColor}` : "bg-white border-gray-200"
                 } ${isRegistering ? "ring-4 ring-yellow-300 animate-pulse" : ""}`}
               >
-                {/* Icon */}
-                <span className="text-3xl w-10 text-center">{action.icon}</span>
-
-                {/* Label + UID */}
-                <div className="flex-1 min-w-0">
-                  <span className={`font-bold ${uid ? action.textColor : "text-gray-400"}`}>
-                    {t(action.labelKey)}
-                  </span>
-                  {uid && (
-                    <span className="ml-3 text-xs text-gray-400 font-mono">{uid}</span>
-                  )}
-                </div>
-
-                {/* Action button */}
+                <span className="text-4xl">{action.icon}</span>
+                <span className={`text-sm font-bold text-center ${uid ? action.textColor : "text-gray-400"}`}>
+                  {t(action.labelKey)}
+                </span>
+                {uid && (
+                  <span className="text-[10px] text-gray-400 font-mono truncate max-w-full">{uid}</span>
+                )}
                 {isRegistering ? (
                   <button
                     onClick={handleCancel}
-                    className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-200 text-gray-600 hover:bg-gray-300 transition shrink-0"
+                    className="w-full px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-200 text-gray-600 hover:bg-gray-300 transition"
                   >
                     {t("cancel")}
                   </button>
@@ -185,7 +180,7 @@ export default function NfcWriter() {
                   <button
                     onClick={() => handleRegister(action)}
                     disabled={!readerConnected || registeringId !== null}
-                    className={`px-4 py-2 rounded-lg text-sm font-bold transition shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`w-full px-3 py-1.5 rounded-lg text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
                       uid
                         ? "bg-white/80 text-gray-600 hover:bg-white border border-gray-300"
                         : "bg-blue-500 text-white hover:bg-blue-600"

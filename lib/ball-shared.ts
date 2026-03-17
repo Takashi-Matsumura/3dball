@@ -72,13 +72,14 @@ export const CAMERA_2D = {
   up: [0, 0, -1] as const,
 };
 
-export const NFC_DIRECTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "JUMP"] as const;
-export const NFC_ICONS: Record<string, string> = { UP: "⬆", DOWN: "⬇", LEFT: "⬅", RIGHT: "➡", JUMP: "⤴" };
+export const NFC_DIRECTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "JUMP", "X2", "X3"] as const;
+export const NFC_ICONS: Record<string, string> = { UP: "⬆", DOWN: "⬇", LEFT: "⬅", RIGHT: "➡", JUMP: "⤴", X2: "×2", X3: "×3" };
 
 export function moveGrid(
   prev: { col: number; row: number },
   direction: string,
   gridSize: number = 3,
+  obstacles: { col: number; row: number }[] = [],
 ): { col: number; row: number } | null {
   const maxIdx = gridSize - 1;
   let { col, row } = prev;
@@ -99,6 +100,7 @@ export function moveGrid(
       return null;
   }
   if (col === prev.col && row === prev.row) return null;
+  if (obstacles.some((o) => o.col === col && o.row === row)) return null;
   return { col, row };
 }
 
@@ -108,6 +110,7 @@ export function generateRandomPath(
   start: { col: number; row: number },
   goal: { col: number; row: number },
   gridSize: number = 3,
+  obstacles: { col: number; row: number }[] = [],
 ): string[] {
   const DIRS = ["UP", "DOWN", "LEFT", "RIGHT"];
   const path: string[] = [];
@@ -118,36 +121,80 @@ export function generateRandomPath(
 
   // Add random detour moves first
   for (let i = 0; i < detourCount; i++) {
-    // Pick a random valid move
     const valid = DIRS.filter((d) => {
-      const next = moveGrid(pos, d, gridSize);
+      const next = moveGrid(pos, d, gridSize, obstacles);
       return next !== null;
     });
     if (valid.length === 0) break;
     const dir = valid[Math.floor(Math.random() * valid.length)];
     path.push(dir);
-    pos = moveGrid(pos, dir, gridSize)!;
+    pos = moveGrid(pos, dir, gridSize, obstacles)!;
   }
 
-  // Now walk toward the goal (greedy with random axis priority)
-  let safety = 20;
+  // Now walk toward the goal (greedy with random axis priority, avoiding obstacles)
+  let safety = 40;
   while ((pos.col !== goal.col || pos.row !== goal.row) && safety-- > 0) {
     const candidates: string[] = [];
     if (pos.col < goal.col) candidates.push("RIGHT");
     if (pos.col > goal.col) candidates.push("LEFT");
     if (pos.row < goal.row) candidates.push("DOWN");
     if (pos.row > goal.row) candidates.push("UP");
-    if (candidates.length === 0) break;
-    const dir = candidates[Math.floor(Math.random() * candidates.length)];
-    path.push(dir);
-    pos = moveGrid(pos, dir, gridSize)!;
+    // Filter to valid moves (not blocked by obstacles)
+    const validCandidates = candidates.filter((d) => moveGrid(pos, d, gridSize, obstacles) !== null);
+    if (validCandidates.length > 0) {
+      const dir = validCandidates[Math.floor(Math.random() * validCandidates.length)];
+      path.push(dir);
+      pos = moveGrid(pos, dir, gridSize, obstacles)!;
+    } else {
+      // All greedy moves blocked — pick any valid move
+      const anyValid = DIRS.filter((d) => moveGrid(pos, d, gridSize, obstacles) !== null);
+      if (anyValid.length === 0) break;
+      const dir = anyValid[Math.floor(Math.random() * anyValid.length)];
+      path.push(dir);
+      pos = moveGrid(pos, dir, gridSize, obstacles)!;
+    }
+  }
+
+  // If greedy failed to reach goal, use BFS fallback
+  if (pos.col !== goal.col || pos.row !== goal.row) {
+    const bfsPath = bfsPath_(start, goal, gridSize, obstacles);
+    if (bfsPath) return bfsPath;
   }
 
   return path;
 }
 
-const DIRECTION_CHARS: Record<string, string> = { UP: "U", DOWN: "D", LEFT: "L", RIGHT: "R", JUMP: "J" };
-const CHAR_DIRECTIONS: Record<string, string> = { U: "UP", D: "DOWN", L: "LEFT", R: "RIGHT", J: "JUMP" };
+/** BFS to find shortest path avoiding obstacles */
+function bfsPath_(
+  start: { col: number; row: number },
+  goal: { col: number; row: number },
+  gridSize: number,
+  obstacles: { col: number; row: number }[],
+): string[] | null {
+  const DIRS = ["UP", "DOWN", "LEFT", "RIGHT"];
+  const key = (c: number, r: number) => `${c},${r}`;
+  const visited = new Set<string>();
+  const queue: { col: number; row: number; path: string[] }[] = [{ ...start, path: [] }];
+  visited.add(key(start.col, start.row));
+
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    for (const dir of DIRS) {
+      const next = moveGrid(cur, dir, gridSize, obstacles);
+      if (!next) continue;
+      const k = key(next.col, next.row);
+      if (visited.has(k)) continue;
+      visited.add(k);
+      const newPath = [...cur.path, dir];
+      if (next.col === goal.col && next.row === goal.row) return newPath;
+      queue.push({ col: next.col, row: next.row, path: newPath });
+    }
+  }
+  return null;
+}
+
+const DIRECTION_CHARS: Record<string, string> = { UP: "U", DOWN: "D", LEFT: "L", RIGHT: "R", JUMP: "J", X2: "2", X3: "3" };
+const CHAR_DIRECTIONS: Record<string, string> = { U: "UP", D: "DOWN", L: "LEFT", R: "RIGHT", J: "JUMP", "2": "X2", "3": "X3" };
 
 export function encodeProgram(steps: string[]): string {
   return steps.map((s) => DIRECTION_CHARS[s] || "").join("");
@@ -155,4 +202,60 @@ export function encodeProgram(steps: string[]): string {
 
 export function decodeProgram(encoded: string): string[] {
   return encoded.split("").map((c) => CHAR_DIRECTIONS[c]).filter(Boolean);
+}
+
+/** Expand x2/x3 loop cards in a program.
+ *  x2 = repeat previous command 2 times total, x3 = 3 times total.
+ *  Consecutive loops add: → x2 x2 = 4, → x2 x3 = 5 */
+export function expandProgram(steps: string[]): string[] {
+  return expandProgramWithMap(steps).expanded;
+}
+
+export function expandProgramWithMap(steps: string[]): { expanded: string[]; indexMap: number[] } {
+  const expanded: string[] = [];
+  const indexMap: number[] = [];
+
+  let baseCommand: string | null = null;
+  let baseIndex = -1;
+  let totalRepeat = 0;
+
+  const flush = () => {
+    if (baseCommand && totalRepeat > 0) {
+      // Remove the 1 already pushed for the base command
+      expanded.pop();
+      indexMap.pop();
+      for (let r = 0; r < totalRepeat; r++) {
+        expanded.push(baseCommand!);
+        indexMap.push(baseIndex);
+      }
+    }
+    baseCommand = null;
+    totalRepeat = 0;
+  };
+
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i];
+    if (s === "X2" || s === "X3") {
+      const n = s === "X2" ? 2 : 3;
+      if (baseCommand === null) {
+        continue;
+      }
+      if (totalRepeat === 0) {
+        totalRepeat = n;
+      } else {
+        totalRepeat += n;
+      }
+      baseIndex = i;
+    } else {
+      flush();
+      baseCommand = s;
+      baseIndex = i;
+      totalRepeat = 0;
+      expanded.push(s);
+      indexMap.push(i);
+    }
+  }
+  flush();
+
+  return { expanded, indexMap };
 }

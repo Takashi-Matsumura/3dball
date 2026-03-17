@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { useI18n, Locale } from "@/lib/i18n";
 import {
@@ -11,11 +11,49 @@ import {
   NFC_ICONS,
   moveGrid,
   encodeProgram,
+  expandProgramWithMap,
 } from "@/lib/ball-shared";
-import { CameraController, Board, Ground, Sphere, CellMarker, TextSprite } from "@/app/components/Scene";
+import { CameraController, Board, Ground, Sphere, CellMarker, TextSprite, ObstacleMarker } from "@/app/components/Scene";
 import { playMove, playJump, playBump, playNfcScan, playSuccess, playBurst } from "@/lib/sounds";
 import { useLevel } from "@/lib/useLevel";
-import { gridCenter } from "@/lib/levels";
+import { gridCenter, LEVELS } from "@/lib/levels";
+
+/** Grouped display of program steps: loop cards merged into the preceding direction */
+interface DisplayStep {
+  dir: string;
+  repeat: number;
+  rawIndices: number[];
+}
+
+function groupProgramForDisplay(program: string[]): DisplayStep[] {
+  const groups: DisplayStep[] = [];
+  for (let i = 0; i < program.length; i++) {
+    const s = program[i];
+    if (s === "X2" || s === "X3") {
+      if (groups.length === 0) continue;
+      const last = groups[groups.length - 1];
+      const n = s === "X2" ? 2 : 3;
+      last.repeat = last.repeat === 1 ? n : last.repeat + n;
+      last.rawIndices.push(i);
+    } else {
+      groups.push({ dir: s, repeat: 1, rawIndices: [i] });
+    }
+  }
+  return groups;
+}
+
+function displayStepsToFlat(groups: DisplayStep[]): string[] {
+  const result: string[] = [];
+  for (const { dir, repeat } of groups) {
+    result.push(dir);
+    if (repeat <= 1) continue;
+    let r = repeat;
+    if (r % 3 === 1 && r >= 4) { result.push("X2"); r -= 2; }
+    while (r >= 3) { result.push("X3"); r -= 3; }
+    while (r >= 2) { result.push("X2"); r -= 2; }
+  }
+  return result;
+}
 
 export default function Ball() {
   const { locale, setLocale, t } = useI18n();
@@ -51,15 +89,19 @@ export default function Ball() {
   const [ntagWriting, setNtagWriting] = useState(false);
   const [ntagResult, setNtagResult] = useState<"success" | "error" | null>(null);
 
+  const displaySteps = useMemo(() => groupProgramForDisplay(program), [program]);
+
   useEffect(() => { progModeRef.current = progMode; }, [progMode]);
   useEffect(() => { progRunningRef.current = progRunning; }, [progRunning]);
 
   // Auto-scroll to highlighted step
   useEffect(() => {
     if (progIndex < 0 || !progStepsRef.current) return;
-    const el = progStepsRef.current.children[progIndex] as HTMLElement | undefined;
+    const gi = displaySteps.findIndex((g) => g.rawIndices.includes(progIndex));
+    if (gi < 0) return;
+    const el = progStepsRef.current.children[gi] as HTMLElement | undefined;
     if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [progIndex]);
+  }, [progIndex, displaySteps]);
 
   // Keep ref in sync for NFC polling callback
   useEffect(() => { isAnimatingRef.current = isAnimating; }, [isAnimating]);
@@ -97,11 +139,14 @@ export default function Ball() {
     // Wait a frame for reset
     await new Promise((r) => setTimeout(r, 100));
 
+    // Expand x2/x3 loops
+    const { expanded, indexMap } = expandProgramWithMap(program);
+
     let currentPos = { ...startPos };
     let passedGoal = false;
-    for (let i = 0; i < program.length; i++) {
-      setProgIndex(i);
-      const direction = program[i];
+    for (let i = 0; i < expanded.length; i++) {
+      setProgIndex(indexMap[i]);
+      const direction = expanded[i];
       if (direction === "JUMP") {
         setJumping(true);
         playJump();
@@ -109,9 +154,9 @@ export default function Ball() {
           jumpDoneResolveRef.current = resolve;
         });
       } else {
-        const next = moveGrid(currentPos, direction, level.gridSize);
+        const next = moveGrid(currentPos, direction, level.gridSize, level.obstacles);
         if (next) {
-          if (level.active && level.isPassthrough(next, i, program.length)) {
+          if (level.active && level.isPassthrough(next, i, expanded.length)) {
             passedGoal = true;
           }
           currentPos = next;
@@ -232,7 +277,12 @@ export default function Ball() {
 
           // Programming mode: add to program instead of moving
           if (progModeRef.current && !progRunningRef.current) {
-            setProgram((prev) => [...prev, cardId]);
+            setProgram((prev) => {
+              if ((cardId === "X2" || cardId === "X3") && !prev.some((s) => s !== "X2" && s !== "X3")) {
+                return prev;
+              }
+              return [...prev, cardId];
+            });
             playNfcScan();
             setNfcFlash(cardId);
             setTimeout(() => { if (!cancelled) setNfcFlash(null); }, 500);
@@ -243,12 +293,15 @@ export default function Ball() {
           if (progModeRef.current) continue; // skip during run
           if (isAnimatingRef.current) continue;
 
+          // Skip loop cards in free move mode
+          if (cardId === "X2" || cardId === "X3") continue;
+
           if (cardId === "JUMP") {
             setJumping(true);
             playJump();
           } else {
             setGridPos((prev) => {
-              const next = moveGrid(prev, cardId);
+              const next = moveGrid(prev, cardId, level.gridSize, level.obstacles);
               if (!next) {
                 playBump();
                 return prev;
@@ -295,6 +348,38 @@ export default function Ball() {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      // P → toggle programming mode
+      if (e.key === "p" && !e.metaKey && !e.ctrlKey && !progRunning) {
+        e.preventDefault();
+        if (progMode) {
+          setProgMode(false);
+          setProgram([]);
+          setProgIndex(-1);
+          setProgRunning(false);
+        } else {
+          setProgMode(true);
+        }
+        return;
+      }
+      // S → toggle settings
+      if (e.key === "s" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setShowSettings((v) => !v);
+        return;
+      }
+      // F1/F2 → toggle level mode
+      if (e.key === "F1" || e.key === "F2") {
+        e.preventDefault();
+        const id = e.key === "F1" ? "lv1" : "lv2";
+        if (level.levelId === id) {
+          const center = level.deactivate();
+          setGridPos(center);
+        } else {
+          const pos = level.activate(id);
+          setGridPos(pos);
+        }
+        return;
+      }
       // Escape → exit level mode
       if (e.key === "Escape" && level.active) {
         e.preventDefault();
@@ -310,14 +395,37 @@ export default function Ball() {
         setIsAnimating(false);
         return;
       }
-      // Enter → next challenge when level cleared
-      if (e.key === "Enter" && level.cleared) {
+      // Enter → next challenge when level cleared (non-prog mode)
+      if (e.key === "Enter" && level.cleared && !progMode) {
         e.preventDefault();
         const pos = level.generate();
         setGridPos(pos);
         return;
       }
-      if (progMode || isAnimating || level.bursting) return;
+      // Programming mode shortcuts
+      if (progMode) {
+        // Enter → Run program
+        if (e.key === "Enter" && !e.shiftKey && !progRunning && program.length > 0) {
+          e.preventDefault();
+          runProgram();
+          return;
+        }
+        // Shift+Enter → New
+        if (e.key === "Enter" && e.shiftKey && !progRunning) {
+          e.preventDefault();
+          setProgram([]);
+          setProgIndex(-1);
+          if (level.active) {
+            const pos = level.generate();
+            setGridPos(pos);
+          } else {
+            setGridPos(gridCenter(level.gridSize));
+          }
+          return;
+        }
+        return;
+      }
+      if (isAnimating || level.bursting) return;
       if (e.key === " " || e.code === "Space") {
         e.preventDefault();
         if (!jumping) {
@@ -336,7 +444,7 @@ export default function Ball() {
       if (!direction) return;
       e.preventDefault();
       setGridPos((prev) => {
-        const next = moveGrid(prev, direction, level.gridSize);
+        const next = moveGrid(prev, direction, level.gridSize, level.obstacles);
         if (!next) {
           playBump();
           return prev;
@@ -346,7 +454,7 @@ export default function Ball() {
         return next;
       });
     },
-    [isAnimating, jumping, progMode, level]
+    [isAnimating, jumping, progMode, progRunning, program, runProgram, level]
   );
 
   useEffect(() => {
@@ -407,63 +515,72 @@ export default function Ball() {
                 }
               }}
               disabled={progRunning}
-              className="px-4 py-2 text-sm font-bold text-white bg-gray-600 hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-white bg-gray-600 hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               New
+              <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono text-white/60">&#8679;Enter</kbd>
             </button>
 
             {/* Program steps */}
             <div ref={progStepsRef} className="flex-1 overflow-y-auto min-h-[120px] px-2 py-2 flex flex-col gap-1">
-              {program.length === 0 ? (
+              {displaySteps.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-8 whitespace-pre-line">
                   {t("scanCardToAdd")}
                 </p>
               ) : (
-                program.map((dir, i) => (
-                  <div
-                    key={i}
-                    draggable={!progRunning}
-                    onDragStart={() => setDragIndex(i)}
-                    onDragOver={(e) => { e.preventDefault(); setDragOverIndex(i); }}
-                    onDragEnd={() => {
-                      if (dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
-                        setProgram((p) => {
-                          const next = [...p];
-                          const [item] = next.splice(dragIndex, 1);
-                          next.splice(dragOverIndex, 0, item);
-                          return next;
-                        });
-                      }
-                      setDragIndex(null);
-                      setDragOverIndex(null);
-                    }}
-                    className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                      progIndex === i
-                        ? "bg-yellow-300 scale-105"
-                        : dragOverIndex === i && dragIndex !== null && dragIndex !== i
-                          ? "bg-blue-100 border-t-2 border-blue-400"
-                          : dragIndex === i
-                            ? "bg-gray-200 opacity-50"
-                            : "bg-gray-100"
-                    }`}
-                    style={{ cursor: progRunning ? "default" : "grab" }}
-                  >
-                    {!progRunning && (
-                      <span className="text-gray-300 text-xs cursor-grab select-none">☰</span>
-                    )}
-                    <span className="text-xs text-gray-400 w-4 text-right">{i + 1}</span>
-                    <span className="text-lg">{NFC_ICONS[dir]}</span>
-                    <span className="text-xs text-gray-600">{dir}</span>
-                    {!progRunning && (
-                      <button
-                        onClick={() => setProgram((p) => p.filter((_, j) => j !== i))}
-                        className="ml-auto text-gray-400 hover:text-red-500 text-xs"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                ))
+                displaySteps.map((group, gi) => {
+                  const isHighlighted = group.rawIndices.includes(progIndex);
+                  return (
+                    <div
+                      key={gi}
+                      draggable={!progRunning}
+                      onDragStart={() => setDragIndex(gi)}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverIndex(gi); }}
+                      onDragEnd={() => {
+                        if (dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
+                          const reordered = [...displaySteps];
+                          const [item] = reordered.splice(dragIndex, 1);
+                          reordered.splice(dragOverIndex, 0, item);
+                          setProgram(displayStepsToFlat(reordered));
+                        }
+                        setDragIndex(null);
+                        setDragOverIndex(null);
+                      }}
+                      className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                        isHighlighted
+                          ? "bg-yellow-300 scale-105"
+                          : dragOverIndex === gi && dragIndex !== null && dragIndex !== gi
+                            ? "bg-blue-100 border-t-2 border-blue-400"
+                            : dragIndex === gi
+                              ? "bg-gray-200 opacity-50"
+                              : "bg-gray-100"
+                      }`}
+                      style={{ cursor: progRunning ? "default" : "grab" }}
+                    >
+                      {!progRunning && (
+                        <span className="text-gray-300 text-xs cursor-grab select-none">☰</span>
+                      )}
+                      <span className="text-xs text-gray-400 w-4 text-right">{gi + 1}</span>
+                      <span className="text-lg">{NFC_ICONS[group.dir]}</span>
+                      <span className="text-xs text-gray-600">{group.dir}</span>
+                      {group.repeat > 1 && (
+                        <span className="text-xs font-bold text-pink-600">×{group.repeat}</span>
+                      )}
+                      {!progRunning && (
+                        <button
+                          onClick={() => {
+                            const groups = groupProgramForDisplay(program);
+                            groups.splice(gi, 1);
+                            setProgram(displayStepsToFlat(groups));
+                          }}
+                          className="ml-auto text-gray-400 hover:text-red-500 text-xs"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </div>
 
@@ -471,13 +588,14 @@ export default function Ball() {
             <button
               onClick={runProgram}
               disabled={progRunning || program.length === 0}
-              className={`px-4 py-2 text-sm font-bold text-white transition disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-white transition disabled:opacity-50 disabled:cursor-not-allowed ${
                 progRunning
                   ? "bg-yellow-500 animate-pulse"
                   : "bg-green-600 hover:bg-green-700"
               }`}
             >
               {progRunning ? t("running") : t("run")}
+              {!progRunning && <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono text-white/60">Enter</kbd>}
             </button>
 
           </div>
@@ -499,8 +617,8 @@ export default function Ball() {
           {(!level.cleared || progMode) && (
             <div className="text-xl font-bold text-yellow-300 drop-shadow-md" style={{ textShadow: "0 0 10px rgba(255,200,0,0.6)" }}>
               {level.challenge !== null
-                ? `${level.challenge}${t("lv1ChallengeTheme")}`
-                : t("lv1Theme")}
+                ? `${level.challenge}${t(level.levelId === "lv2" ? "lv2ChallengeTheme" : "lv1ChallengeTheme")}`
+                : t(level.levelId === "lv2" ? "lv2Theme" : "lv1Theme")}
             </div>
           )}
           {/* Action buttons row */}
@@ -655,27 +773,29 @@ export default function Ball() {
 
       {/* Footer — NFC status + NTAG save */}
       <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center px-4 py-2 bg-black/50 backdrop-blur">
-        <div className="flex-1 flex">
-          {!progMode && (
+        <div className="flex-1 flex gap-1">
+          {!progMode && Object.keys(LEVELS).map((id) => (
             <button
+              key={id}
               onClick={() => {
-                if (level.active) {
+                if (level.levelId === id) {
                   const center = level.deactivate();
                   setGridPos(center);
                 } else {
-                  const pos = level.activate("lv1");
+                  const pos = level.activate(id);
                   setGridPos(pos);
                 }
               }}
               className={`rounded px-2 py-0.5 text-xs font-bold transition ${
-                level.active
+                level.levelId === id
                   ? "bg-yellow-400 text-black"
                   : "bg-white/20 text-white/60 hover:bg-white/30"
               }`}
             >
-              {t("lv1")}
+              {t(id as "lv1" | "lv2")}
+              <kbd className="ml-1 rounded bg-white/15 px-1 py-0.5 text-[9px] font-mono opacity-60">{id === "lv1" ? "F1" : "F2"}</kbd>
             </button>
-          )}
+          ))}
         </div>
         <div className="flex items-center gap-2 text-xs font-medium text-white/80">
           <span
@@ -799,7 +919,7 @@ export default function Ball() {
       <Canvas camera={{ position: [0, 5, 5], fov: 45 }} gl={{ antialias: true }} shadows>
         <color attach="background" args={["#0d0d14"]} />
         <fog attach="fog" args={["#0d0d14", 8, 18]} />
-        <CameraController is2D={is2D} />
+        <CameraController is2D={is2D} gridSize={level.gridSize} />
         <ambientLight intensity={1.0} />
         <directionalLight
           position={[3, 6, 4]}
@@ -824,6 +944,9 @@ export default function Ball() {
             <TextSprite col={level.start.col} row={level.start.row} text={t("start")} color="#44cc44" gridSize={level.gridSize} />
             <CellMarker col={level.goal.col} row={level.goal.row} color="#ffaa00" gridSize={level.gridSize} />
             <TextSprite col={level.goal.col} row={level.goal.row} text={t("goal")} color="#ffaa00" gridSize={level.gridSize} />
+            {level.obstacles.map((ob, i) => (
+              <ObstacleMarker key={i} col={ob.col} row={ob.row} gridSize={level.gridSize} />
+            ))}
           </>
         )}
         <Sphere

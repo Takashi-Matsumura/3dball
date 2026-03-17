@@ -12,7 +12,7 @@ import {
   PatternConfig,
 } from "@/lib/ball-shared";
 
-export function CameraController({ is2D }: { is2D: boolean }) {
+export function CameraController({ is2D, gridSize = 3 }: { is2D: boolean; gridSize?: number }) {
   const { camera, size } = useThree();
   const target = is2D ? CAMERA_2D : CAMERA_3D;
   const currentPos = useRef(new THREE.Vector3(...CAMERA_3D.pos));
@@ -22,7 +22,9 @@ export function CameraController({ is2D }: { is2D: boolean }) {
   useFrame((_state, delta) => {
     const aspect = size.width / size.height;
     // Pull camera back for portrait screens so the full board is visible
-    const scale = aspect < 1 ? 1 / aspect : 1;
+    let scale = aspect < 1 ? 1 / aspect : 1;
+    // Scale camera distance for larger grids
+    scale *= gridSize / 3;
 
     const basePos = new THREE.Vector3(...target.pos);
     const lookAt = new THREE.Vector3(...target.lookAt);
@@ -169,6 +171,32 @@ export function TextSprite({
     <sprite position={[x, 0.8, z]} scale={[0.7, 0.35, 1]}>
       <spriteMaterial map={texture} transparent />
     </sprite>
+  );
+}
+
+/** Obstacle marker — red translucent block */
+export function ObstacleMarker({
+  col,
+  row,
+  gridSize = 5,
+}: {
+  col: number;
+  row: number;
+  gridSize?: number;
+}) {
+  const offset = (gridSize - 1) / 2;
+  const x = (col - offset) * CELL_SIZE;
+  const z = (row - offset) * CELL_SIZE;
+  const blockSize = CELL_SIZE * 0.7;
+  const blockHeight = 0.3;
+
+  return (
+    <group position={[x, blockHeight / 2 + 0.01, z]}>
+      <mesh castShadow>
+        <boxGeometry args={[blockSize, blockHeight, blockSize]} />
+        <meshStandardMaterial color="#cc3333" transparent opacity={0.7} roughness={0.5} />
+      </mesh>
+    </group>
   );
 }
 

@@ -5,7 +5,7 @@ import {
   LevelConfig,
   LEVELS,
   GridPos,
-  generateStartGoal,
+  generateLevel,
   generateChallengeCount,
   gridCenter,
   checkMoveResult,
@@ -21,6 +21,7 @@ export interface LevelState {
   config: LevelConfig | null;
   start: GridPos;
   goal: GridPos;
+  obstacles: GridPos[];
   cleared: boolean;
   challenge: number | null;
   moves: number;
@@ -54,6 +55,7 @@ export function useLevel(): LevelState {
   const [config, setConfig] = useState<LevelConfig | null>(null);
   const [start, setStart] = useState<GridPos>({ col: 0, row: 0 });
   const [goal, setGoal] = useState<GridPos>({ col: 2, row: 2 });
+  const [obstacles, setObstacles] = useState<GridPos[]>([]);
   const [cleared, setCleared] = useState(false);
   const [challenge, setChallenge] = useState<number | null>(null);
   const [moves, setMoves] = useState(0);
@@ -70,9 +72,10 @@ export function useLevel(): LevelState {
     if (!cfg) return gridCenter(3);
     setLevelId(id);
     setConfig(cfg);
-    const { start: s, goal: g } = generateStartGoal(cfg);
+    const { start: s, goal: g, obstacles: obs } = generateLevel(cfg);
     setStart(s);
     setGoal(g);
+    setObstacles(obs);
     setCleared(false);
     setChallenge(null);
     setMoves(0);
@@ -82,20 +85,21 @@ export function useLevel(): LevelState {
   }, []);
 
   const deactivate = useCallback((): GridPos => {
-    const gs = config?.gridSize ?? 3;
     setLevelId(null);
     setConfig(null);
+    setObstacles([]);
     setCleared(false);
     setChallenge(null);
     setBursting(false);
-    return gridCenter(gs);
-  }, [config]);
+    return gridCenter(3);
+  }, []);
 
   const generate = useCallback((): GridPos => {
     if (!config) return gridCenter(3);
-    const { start: s, goal: g } = generateStartGoal(config);
+    const { start: s, goal: g, obstacles: obs } = generateLevel(config);
     setStart(s);
     setGoal(g);
+    setObstacles(obs);
     setCleared(false);
     setChallenge(null);
     setMoves(0);
@@ -106,14 +110,14 @@ export function useLevel(): LevelState {
 
   const newChallenge = useCallback((): GridPos => {
     if (!config) return gridCenter(3);
-    const count = generateChallengeCount(start, goal, challenge);
+    const count = generateChallengeCount(start, goal, challenge, config.gridSize, obstacles);
     setChallenge(count);
     setMoves(0);
     movesRef.current = 0;
     setCleared(false);
     prevPosRef.current = start;
     return start;
-  }, [config, start, goal, challenge]);
+  }, [config, start, goal, challenge, obstacles]);
 
   const resetForRun = useCallback(() => {
     setCleared(false);
@@ -159,8 +163,8 @@ export function useLevel(): LevelState {
 
   const getNtagParams = useCallback((): Record<string, string> => {
     if (!config) return {};
-    return buildLevelNtagParams(config, start, goal, challenge);
-  }, [config, start, goal, challenge]);
+    return buildLevelNtagParams(config, start, goal, challenge, obstacles);
+  }, [config, start, goal, challenge, obstacles]);
 
   return {
     active,
@@ -168,6 +172,7 @@ export function useLevel(): LevelState {
     config,
     start,
     goal,
+    obstacles,
     cleared,
     challenge,
     moves,

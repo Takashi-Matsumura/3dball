@@ -5,13 +5,89 @@ export interface LevelConfig {
   gridSize: number;
   minDistance: number;
   hasChallenge: boolean;
+  obstacleCount?: { min: number; max: number };
 }
 
 export const LEVELS: Record<string, LevelConfig> = {
   lv1: { id: "lv1", gridSize: 3, minDistance: 2, hasChallenge: true },
+  lv2: { id: "lv2", gridSize: 5, minDistance: 4, hasChallenge: true, obstacleCount: { min: 2, max: 4 } },
 };
 
 export type GridPos = { col: number; row: number };
+
+/** BFS check if path exists from start to goal avoiding obstacles */
+export function hasPath(
+  start: GridPos,
+  goal: GridPos,
+  gridSize: number,
+  obstacles: GridPos[],
+): boolean {
+  const key = (c: number, r: number) => `${c},${r}`;
+  const visited = new Set<string>();
+  const queue: GridPos[] = [start];
+  visited.add(key(start.col, start.row));
+
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    if (cur.col === goal.col && cur.row === goal.row) return true;
+    for (const dir of ["UP", "DOWN", "LEFT", "RIGHT"]) {
+      const next = moveGrid(cur, dir, gridSize, obstacles);
+      if (!next) continue;
+      const k = key(next.col, next.row);
+      if (visited.has(k)) continue;
+      visited.add(k);
+      queue.push(next);
+    }
+  }
+  return false;
+}
+
+/** Generate random obstacles for a level, ensuring path exists */
+export function generateObstacles(
+  config: LevelConfig,
+  start: GridPos,
+  goal: GridPos,
+): GridPos[] {
+  if (!config.obstacleCount) return [];
+  const { min, max } = config.obstacleCount;
+  const count = min + Math.floor(Math.random() * (max - min + 1));
+  const { gridSize } = config;
+
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const obstacles: GridPos[] = [];
+    const used = new Set<string>();
+    used.add(`${start.col},${start.row}`);
+    used.add(`${goal.col},${goal.row}`);
+
+    for (let i = 0; i < count; i++) {
+      let placed = false;
+      for (let t = 0; t < 20; t++) {
+        const col = Math.floor(Math.random() * gridSize);
+        const row = Math.floor(Math.random() * gridSize);
+        const k = `${col},${row}`;
+        if (!used.has(k)) {
+          used.add(k);
+          obstacles.push({ col, row });
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) break;
+    }
+
+    if (obstacles.length === count && hasPath(start, goal, gridSize, obstacles)) {
+      return obstacles;
+    }
+  }
+  return []; // fallback: no obstacles
+}
+
+/** Generate start, goal, and obstacles for a level */
+export function generateLevel(config: LevelConfig): { start: GridPos; goal: GridPos; obstacles: GridPos[] } {
+  const { start, goal } = generateStartGoal(config);
+  const obstacles = generateObstacles(config, start, goal);
+  return { start, goal, obstacles };
+}
 
 /** Generate random start/goal positions for a level */
 export function generateStartGoal(config: LevelConfig): { start: GridPos; goal: GridPos } {
@@ -35,11 +111,13 @@ export function generateChallengeCount(
   start: GridPos,
   goal: GridPos,
   currentChallenge: number | null,
+  gridSize: number = 3,
+  obstacles: GridPos[] = [],
 ): number {
   let count: number;
   let attempts = 0;
   do {
-    const path = generateRandomPath(start, goal);
+    const path = generateRandomPath(start, goal, gridSize, obstacles);
     count = path.length;
     attempts++;
   } while (count === currentChallenge && attempts < 20);
@@ -87,19 +165,36 @@ export function isGoalPassthrough(
   return pos.col === goal.col && pos.row === goal.row;
 }
 
+/** Encode obstacles to a compact string: "1223" = col1row2, col2row3 */
+export function encodeObstacles(obstacles: GridPos[]): string {
+  return obstacles.map((o) => `${o.col}${o.row}`).join("");
+}
+
+/** Decode obstacles from compact string */
+export function decodeObstacles(encoded: string): GridPos[] {
+  const obstacles: GridPos[] = [];
+  for (let i = 0; i + 1 < encoded.length; i += 2) {
+    obstacles.push({ col: Number(encoded[i]), row: Number(encoded[i + 1]) });
+  }
+  return obstacles;
+}
+
 /** Build NTAG URL params for a level */
 export function buildLevelNtagParams(
   config: LevelConfig,
   start: GridPos,
   goal: GridPos,
   challenge: number | null,
+  obstacles: GridPos[] = [],
 ): Record<string, string> {
   const params: Record<string, string> = {
+    lv: config.id,
     sc: String(start.col),
     sr: String(start.row),
     gc: String(goal.col),
     gr: String(goal.row),
   };
   if (challenge !== null) params.ch = String(challenge);
+  if (obstacles.length > 0) params.ob = encodeObstacles(obstacles);
   return params;
 }
