@@ -175,25 +175,38 @@ export interface AnimState {
   progress: number;
 }
 
+const PARTICLE_COUNT = 12;
+
+interface BurstParticle {
+  vel: THREE.Vector3;
+  pos: THREE.Vector3;
+}
+
 export function Sphere({
   gridCol,
   gridRow,
   jumping,
+  bursting,
   onAnimDone,
   onJumpDone,
+  onBurstDone,
   patternConfig,
 }: {
   gridCol: number;
   gridRow: number;
   jumping?: boolean;
+  bursting?: boolean;
   onAnimDone: () => void;
   onJumpDone?: () => void;
+  onBurstDone?: () => void;
   patternConfig: PatternConfig;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const innerRef = useRef<THREE.Group>(null);
+  const particlesRef = useRef<THREE.Group>(null);
   const animRef = useRef<AnimState | null>(null);
   const jumpRef = useRef<{ bounce: number; progress: number } | null>(null);
+  const burstRef = useRef<{ progress: number; particles: BurstParticle[] } | null>(null);
   const prevPos = useRef({ col: gridCol, row: gridRow });
   const cumulativeRotation = useRef(new THREE.Quaternion());
 
@@ -201,6 +214,9 @@ export function Sphere({
   const JUMP_SPEED = 3;
   const JUMP_HEIGHT = BALL_RADIUS * 2.5;
   const BOUNCE_COUNT = 3;
+  const BURST_EXPAND_DURATION = 0.1;
+  const BURST_SCATTER_DURATION = 0.6;
+  const BURST_TOTAL = BURST_EXPAND_DURATION + BURST_SCATTER_DURATION;
 
   // Start jump animation
   useEffect(() => {
@@ -208,6 +224,27 @@ export function Sphere({
       jumpRef.current = { bounce: 0, progress: 0 };
     }
   }, [jumping]);
+
+  // Start burst animation
+  useEffect(() => {
+    if (bursting && !burstRef.current) {
+      const particles: BurstParticle[] = [];
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const theta = (i / PARTICLE_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+        const phi = Math.random() * Math.PI * 0.8 + 0.1;
+        const speed = 2 + Math.random() * 2;
+        particles.push({
+          vel: new THREE.Vector3(
+            Math.sin(phi) * Math.cos(theta) * speed,
+            Math.cos(phi) * speed * 0.8 + 1,
+            Math.sin(phi) * Math.sin(theta) * speed,
+          ),
+          pos: new THREE.Vector3(0, 0, 0),
+        });
+      }
+      burstRef.current = { progress: 0, particles };
+    }
+  }, [bursting]);
 
   useEffect(() => {
     const prevCol = prevPos.current.col;
@@ -266,6 +303,55 @@ export function Sphere({
       }
     }
 
+    // Burst animation
+    const burst = burstRef.current;
+    if (burst && particlesRef.current) {
+      burst.progress += delta;
+      const t = burst.progress;
+
+      if (t < BURST_EXPAND_DURATION) {
+        // Phase 1: quick expand
+        const et = t / BURST_EXPAND_DURATION;
+        innerRef.current.scale.setScalar(1 + et * 0.4);
+      } else {
+        // Phase 2: ball invisible, particles scatter
+        innerRef.current.scale.setScalar(0);
+        const st = (t - BURST_EXPAND_DURATION) / BURST_SCATTER_DURATION;
+        const clampedSt = Math.min(st, 1);
+
+        const children = particlesRef.current.children;
+        for (let i = 0; i < burst.particles.length; i++) {
+          const p = burst.particles[i];
+          const child = children[i] as THREE.Mesh;
+          if (!child) continue;
+          // Apply gravity
+          const elapsed = t - BURST_EXPAND_DURATION;
+          const px = p.vel.x * elapsed;
+          const py = p.vel.y * elapsed - 4.9 * elapsed * elapsed;
+          const pz = p.vel.z * elapsed;
+          child.position.set(px, py, pz);
+          // Fade out by shrinking
+          const fadeScale = 1 - clampedSt;
+          child.scale.setScalar(fadeScale);
+          child.visible = true;
+        }
+      }
+
+      if (t >= BURST_TOTAL) {
+        burstRef.current = null;
+        innerRef.current.scale.setScalar(1);
+        // Hide particles
+        if (particlesRef.current) {
+          for (const child of particlesRef.current.children) {
+            (child as THREE.Mesh).visible = false;
+            (child as THREE.Mesh).scale.setScalar(1);
+            child.position.set(0, 0, 0);
+          }
+        }
+        onBurstDone?.();
+      }
+    }
+
     // Move animation
     const anim = animRef.current;
     if (!anim) {
@@ -301,6 +387,10 @@ export function Sphere({
   });
 
   const material = useMemo(() => makeShaderMaterial(patternConfig), [patternConfig]);
+  const particleMaterial = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: patternConfig.color1 }),
+    [patternConfig.color1],
+  );
 
   const initX = (gridCol - 1) * CELL_SIZE;
   const initZ = (gridRow - 1) * CELL_SIZE;
@@ -311,6 +401,13 @@ export function Sphere({
         <mesh material={material} castShadow>
           <sphereGeometry args={[BALL_RADIUS, 64, 64]} />
         </mesh>
+      </group>
+      <group ref={particlesRef}>
+        {Array.from({ length: PARTICLE_COUNT }).map((_, i) => (
+          <mesh key={i} material={particleMaterial} visible={false}>
+            <sphereGeometry args={[BALL_RADIUS * 0.2, 8, 8]} />
+          </mesh>
+        ))}
       </group>
     </group>
   );

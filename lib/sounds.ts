@@ -74,6 +74,35 @@ export function playNfcScan() {
   });
 }
 
+/** Sharp pop burst — ball explodes (failure) */
+export function playBurst() {
+  const c = getCtx();
+  // Sharp attack pop
+  const osc = c.createOscillator();
+  const gain = c.createGain();
+  osc.type = "square";
+  osc.frequency.setValueAtTime(800, c.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(100, c.currentTime + 0.15);
+  gain.gain.setValueAtTime(0.25, c.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.2);
+  osc.connect(gain).connect(c.destination);
+  osc.start(c.currentTime);
+  osc.stop(c.currentTime + 0.2);
+  // Noise burst for crackle
+  const bufferSize = Math.floor(c.sampleRate * 0.3);
+  const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+  const noise = c.createBufferSource();
+  noise.buffer = buffer;
+  const noiseGain = c.createGain();
+  noiseGain.gain.setValueAtTime(0.18, c.currentTime);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.3);
+  noise.connect(noiseGain).connect(c.destination);
+  noise.start(c.currentTime);
+  noise.stop(c.currentTime + 0.3);
+}
+
 /** Success fanfare — program complete or goal reached */
 export function playSuccess() {
   const c = getCtx();

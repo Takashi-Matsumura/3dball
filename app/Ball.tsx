@@ -14,7 +14,7 @@ import {
   generateRandomPath,
 } from "@/lib/ball-shared";
 import { CameraController, Board, Ground, Sphere, CellMarker, TextSprite } from "@/app/components/Scene";
-import { playMove, playJump, playBump, playNfcScan, playSuccess } from "@/lib/sounds";
+import { playMove, playJump, playBump, playNfcScan, playSuccess, playBurst } from "@/lib/sounds";
 
 export default function Ball() {
   const { locale, setLocale, t } = useI18n();
@@ -51,6 +51,8 @@ export default function Ball() {
   const [lv1Cleared, setLv1Cleared] = useState(false);
   const [lv1Challenge, setLv1Challenge] = useState<number | null>(null); // target move count
   const [lv1Moves, setLv1Moves] = useState(0);
+  const lv1MovesRef = useRef(0);
+  const [bursting, setBursting] = useState(false);
 
   const generateLv1 = useCallback(() => {
     const positions: { col: number; row: number }[] = [];
@@ -68,6 +70,7 @@ export default function Ball() {
     setLv1Cleared(false);
     setLv1Challenge(null);
     setLv1Moves(0);
+    lv1MovesRef.current = 0;
     setIsAnimating(false);
   }, []);
 
@@ -81,6 +84,7 @@ export default function Ball() {
     } while (count === lv1Challenge && attempts < 20);
     setLv1Challenge(count);
     setLv1Moves(0);
+    lv1MovesRef.current = 0;
     setGridPos(lv1Start);
     setLv1Cleared(false);
     setIsAnimating(false);
@@ -104,30 +108,48 @@ export default function Ball() {
   // Keep ref in sync for NFC polling callback
   useEffect(() => { isAnimatingRef.current = isAnimating; }, [isAnimating]);
 
-  // Lv1: count moves and detect goal
+  // Lv1: count moves, detect goal, and check challenge failure (unified)
   const lv1PrevPos = useRef(gridPos);
   useEffect(() => {
-    if (!lv1Mode || lv1Cleared) return;
+    if (!lv1Mode || lv1Cleared || bursting) return;
+
+    // Count move
     const prev = lv1PrevPos.current;
+    let moves = lv1MovesRef.current;
     if (prev.col !== gridPos.col || prev.row !== gridPos.row) {
-      setLv1Moves((m) => m + 1);
+      moves = moves + 1;
+      lv1MovesRef.current = moves;
+      setLv1Moves(moves);
     }
     lv1PrevPos.current = gridPos;
-  }, [gridPos, lv1Mode, lv1Cleared]);
 
-  // Lv1 goal detection — only in non-programming mode (direct move)
-  // In programming mode, goal check is handled inside runProgram
-  useEffect(() => {
-    if (!lv1Mode || lv1Cleared || isAnimating || progMode) return;
-    if (gridPos.col === lv1Goal.col && gridPos.row === lv1Goal.row) {
-      setLv1Cleared(true);
-      playSuccess();
+    // Goal/failure detection only when animation settles (non-programming mode)
+    if (isAnimating || progMode) return;
+
+    const onGoal = gridPos.col === lv1Goal.col && gridPos.row === lv1Goal.row;
+    if (onGoal) {
+      if (lv1Challenge !== null && moves !== lv1Challenge) {
+        setBursting(true);
+        playBurst();
+      } else {
+        setLv1Cleared(true);
+        playSuccess();
+        setJumping(true);
+        playJump();
+      }
+      return;
     }
-  }, [gridPos, isAnimating, lv1Mode, lv1Goal, lv1Cleared, progMode]);
+    // Challenge active: exceeded move count without reaching goal → burst
+    if (lv1Challenge !== null && moves > lv1Challenge) {
+      setBursting(true);
+      playBurst();
+    }
+  }, [gridPos, isAnimating, lv1Mode, lv1Goal, lv1Cleared, progMode, lv1Challenge, bursting]);
 
   // Run program step by step
   const animDoneResolveRef = useRef<(() => void) | null>(null);
   const jumpDoneResolveRef = useRef<(() => void) | null>(null);
+  const burstDoneResolveRef = useRef<(() => void) | null>(null);
 
   const runProgram = useCallback(async () => {
     if (program.length === 0) return;
@@ -175,16 +197,30 @@ export default function Ball() {
       await new Promise((r) => setTimeout(r, 200));
     }
     setProgIndex(-1);
-    setProgRunning(false);
 
     // Lv1: clear only if ended on goal without passing through it
-    if (lv1Mode && !passedGoal &&
-        currentPos.col === lv1Goal.col && currentPos.row === lv1Goal.row) {
+    const lv1Success = lv1Mode && !passedGoal &&
+        currentPos.col === lv1Goal.col && currentPos.row === lv1Goal.row;
+    if (lv1Success) {
       setLv1Cleared(true);
       playSuccess();
-    } else if (!lv1Mode) {
+      setJumping(true);
+      playJump();
+      await new Promise<void>((resolve) => {
+        jumpDoneResolveRef.current = resolve;
+      });
+    } else if (lv1Mode) {
+      // Lv1 failure: burst
+      setBursting(true);
+      playBurst();
+      await new Promise<void>((resolve) => {
+        burstDoneResolveRef.current = resolve;
+      });
+    } else {
       playSuccess();
     }
+
+    setProgRunning(false);
   }, [program, lv1Mode, lv1Start, lv1Goal]);
 
   const handleOpenNtagModal = useCallback(() => {
@@ -316,8 +352,32 @@ export default function Ball() {
     }
   }, []);
 
+  const handleBurstDone = useCallback(() => {
+    setBursting(false);
+    // Programming mode: resolve the awaited promise
+    if (burstDoneResolveRef.current) {
+      burstDoneResolveRef.current();
+      burstDoneResolveRef.current = null;
+    } else if (lv1Mode) {
+      // Free move mode: reset to start
+      lv1PrevPos.current = lv1Start;
+      setGridPos(lv1Start);
+      setLv1Moves(0);
+      lv1MovesRef.current = 0;
+      setIsAnimating(false);
+    }
+  }, [lv1Mode, lv1Start]);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      // Escape → exit Lv1 mode
+      if (e.key === "Escape" && lv1Mode) {
+        e.preventDefault();
+        setLv1Mode(false);
+        setLv1Cleared(false);
+        setGridPos({ col: 1, row: 1 });
+        return;
+      }
       // Tab → generate challenge when Lv1 active
       if (e.key === "Tab" && lv1Mode && !lv1Cleared) {
         e.preventDefault();
@@ -330,7 +390,7 @@ export default function Ball() {
         generateLv1();
         return;
       }
-      if (progMode || isAnimating) return;
+      if (progMode || isAnimating || bursting) return;
       if (e.key === " " || e.code === "Space") {
         e.preventDefault();
         if (!jumping) {
@@ -359,7 +419,7 @@ export default function Ball() {
         return next;
       });
     },
-    [isAnimating, jumping, progMode, lv1Mode, lv1Cleared, generateLv1, generateChallenge]
+    [isAnimating, jumping, progMode, bursting, lv1Mode, lv1Cleared, generateLv1, generateChallenge]
   );
 
   useEffect(() => {
@@ -496,46 +556,46 @@ export default function Ball() {
         )}
       </div>
 
-      {/* Lv1 theme label — bottom center, above footer */}
-      {lv1Mode && (!lv1Cleared || progMode) && (
+      {/* Lv1 HUD — bottom center, above footer */}
+      {lv1Mode && (
         <div className="absolute bottom-12 left-0 right-0 z-10 flex flex-col items-center gap-1">
-          {/* Move counter — shown when challenge is active */}
-          {lv1Challenge !== null && (
+          {/* Move counter — shown when challenge is active and not cleared */}
+          {lv1Challenge !== null && !lv1Cleared && (
             <div className="flex items-center gap-3 text-white/90 text-lg font-bold">
               <span>{lv1Moves}</span>
               <span className="text-white/40">/</span>
               <span className="text-yellow-300">{lv1Challenge}</span>
             </div>
           )}
-          <div className="flex items-center gap-2">
+          {/* Theme text */}
+          {(!lv1Cleared || progMode) && (
             <div className="text-xl font-bold text-yellow-300 drop-shadow-md" style={{ textShadow: "0 0 10px rgba(255,200,0,0.6)" }}>
               {lv1Challenge !== null
                 ? `${lv1Challenge}${t("lv1ChallengeTheme")}`
                 : t("lv1Theme")}
             </div>
-            <button
-              onClick={generateChallenge}
-              className="rounded px-2 py-0.5 text-xs font-bold bg-white/20 text-white/80 hover:bg-white/30 transition backdrop-blur"
-            >
-              {t("lv1Challenge")}
-            </button>
+          )}
+          {/* Action buttons row */}
+          <div className="flex items-center gap-2 mt-1">
+            {(!lv1Cleared || progMode) && (
+              <button
+                onClick={generateChallenge}
+                className="flex items-center gap-1.5 rounded px-3 py-1 text-xs font-bold bg-white/20 text-white/80 hover:bg-white/30 transition backdrop-blur"
+              >
+                {t("lv1Challenge")}
+                <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono text-white/60">Tab</kbd>
+              </button>
+            )}
+            {lv1Cleared && !progMode && (
+              <button
+                onClick={() => generateLv1()}
+                className="flex items-center gap-1.5 rounded px-3 py-1 text-xs font-bold bg-yellow-400/80 text-black hover:bg-yellow-400 transition backdrop-blur"
+              >
+                {t("nextChallenge")}
+                <kbd className="rounded bg-black/10 px-1.5 py-0.5 text-[10px] font-mono text-black/50">Enter</kbd>
+              </button>
+            )}
           </div>
-        </div>
-      )}
-
-      {/* Lv1 clear — next button at center (hide in prog mode — use Run instead) */}
-      {lv1Cleared && !progMode && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
-          <button
-            onClick={() => generateLv1()}
-            className="pointer-events-auto w-24 h-24 rounded-2xl bg-white/95 shadow-xl backdrop-blur border border-gray-200 transition hover:bg-white hover:scale-105 flex flex-col items-center justify-center gap-1"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-gray-700">
-              <polyline points="9 10 4 15 9 20" />
-              <path d="M20 4v7a4 4 0 0 1-4 4H4" />
-            </svg>
-            <span className="text-xs font-bold text-gray-500">{t("nextChallenge")}</span>
-          </button>
         </div>
       )}
 
@@ -639,7 +699,7 @@ export default function Ball() {
             <div className="rounded-lg bg-white/95 p-3 shadow-md backdrop-blur border border-gray-200 flex flex-col gap-1">
               <label className="text-xs text-black/60 mb-1">{t("language")}</label>
               <div className="flex gap-1">
-                {(["ja", "en"] as Locale[]).map((lang) => (
+                {(["ja", "en", "es"] as Locale[]).map((lang) => (
                   <button
                     key={lang}
                     onClick={() => setLocale(lang)}
@@ -649,7 +709,7 @@ export default function Ball() {
                         : "bg-gray-100 text-black/70 hover:bg-gray-200"
                     }`}
                   >
-                    {lang === "ja" ? "日本語" : "English"}
+                    {{ ja: "日本語", en: "English", es: "Español" }[lang]}
                   </button>
                 ))}
               </div>
@@ -836,8 +896,10 @@ export default function Ball() {
           gridCol={gridPos.col}
           gridRow={gridPos.row}
           jumping={jumping}
+          bursting={bursting}
           onAnimDone={handleAnimDone}
           onJumpDone={handleJumpDone}
+          onBurstDone={handleBurstDone}
           patternConfig={patternConfig}
         />
       </Canvas>
