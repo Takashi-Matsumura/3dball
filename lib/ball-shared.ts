@@ -259,3 +259,40 @@ export function expandProgramWithMap(steps: string[]): { expanded: string[]; ind
 
   return { expanded, indexMap };
 }
+
+/** Grouped display of program steps: loop cards merged into the preceding direction */
+export interface DisplayStep {
+  dir: string;
+  repeat: number;
+  rawIndices: number[];
+}
+
+export function groupProgramForDisplay(program: string[]): DisplayStep[] {
+  const groups: DisplayStep[] = [];
+  for (let i = 0; i < program.length; i++) {
+    const s = program[i];
+    if (s === "X2" || s === "X3") {
+      if (groups.length === 0) continue;
+      const last = groups[groups.length - 1];
+      const n = s === "X2" ? 2 : 3;
+      last.repeat = last.repeat === 1 ? n : last.repeat + n;
+      last.rawIndices.push(i);
+    } else {
+      groups.push({ dir: s, repeat: 1, rawIndices: [i] });
+    }
+  }
+  return groups;
+}
+
+export function displayStepsToFlat(groups: DisplayStep[]): string[] {
+  const result: string[] = [];
+  for (const { dir, repeat } of groups) {
+    result.push(dir);
+    if (repeat <= 1) continue;
+    let r = repeat;
+    if (r % 3 === 1 && r >= 4) { result.push("X2"); r -= 2; }
+    while (r >= 3) { result.push("X3"); r -= 3; }
+    while (r >= 2) { result.push("X2"); r -= 2; }
+  }
+  return result;
+}

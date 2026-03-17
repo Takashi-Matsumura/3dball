@@ -5,12 +5,11 @@ import { Canvas } from "@react-three/fiber";
 import {
   PatternConfig,
   NFC_ICONS,
-  moveGrid,
-  expandProgramWithMap,
 } from "@/lib/ball-shared";
 import { GridPos } from "@/lib/levels";
-import { CameraController, Board, Ground, Sphere, CellMarker, TextSprite, ObstacleMarker } from "@/app/components/Scene";
-import { playMove, playJump, playSuccess } from "@/lib/sounds";
+import { SceneLighting, CameraController, Board, Ground, Sphere, CellMarker, TextSprite, ObstacleMarker } from "@/app/components/Scene";
+import { playSuccess } from "@/lib/sounds";
+import { useProgramRunner } from "@/lib/useProgramRunner";
 
 interface LevelInfo {
   start: { col: number; row: number };
@@ -33,15 +32,11 @@ interface ReplaySceneProps {
 export default function ReplayScene({ steps, color1, color2, scale, pattern, createdAt, gridSize: gridSizeProp, obstacles = [], levelInfo }: ReplaySceneProps) {
   const gridSize = gridSizeProp ?? 3;
   const startPos = levelInfo ? levelInfo.start : { col: 1, row: 1 };
-  const [gridPos, setGridPos] = useState(startPos);
+  const runner = useProgramRunner();
+  const { gridPos, jumping, progIndex, handleAnimDone, handleJumpDone } = runner;
   const [levelCleared, setLevelCleared] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
   const [is2D, setIs2D] = useState(false);
-  const [jumping, setJumping] = useState(false);
-  const [progIndex, setProgIndex] = useState(-1);
   const [finished, setFinished] = useState(false);
-  const animDoneResolveRef = useRef<(() => void) | null>(null);
-  const jumpDoneResolveRef = useRef<(() => void) | null>(null);
   const stepsRef = useRef<HTMLDivElement>(null);
 
   const patternConfig: PatternConfig = {
@@ -58,71 +53,30 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
     if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [progIndex]);
 
-  const handleAnimDone = useCallback(() => {
-    setIsAnimating(false);
-    if (animDoneResolveRef.current) {
-      animDoneResolveRef.current();
-      animDoneResolveRef.current = null;
-    }
-  }, []);
-
-  const handleJumpDone = useCallback(() => {
-    setJumping(false);
-    if (jumpDoneResolveRef.current) {
-      jumpDoneResolveRef.current();
-      jumpDoneResolveRef.current = null;
-    }
-  }, []);
-
   const runProgram = useCallback(async () => {
     setFinished(false);
     setLevelCleared(false);
-    setGridPos(startPos);
-    setIsAnimating(false);
-    setProgIndex(-1);
-    await new Promise((r) => setTimeout(r, 100));
 
-    // Expand x2/x3 loops
-    const { expanded, indexMap } = expandProgramWithMap(steps);
+    const isPassthrough = levelInfo
+      ? (pos: { col: number; row: number }, i: number, total: number) =>
+          i < total - 1 && pos.col === levelInfo.goal.col && pos.row === levelInfo.goal.row
+      : undefined;
 
-    let currentPos = { ...startPos };
-    let passedGoal = false;
-    for (let i = 0; i < expanded.length; i++) {
-      setProgIndex(indexMap[i]);
-      const direction = expanded[i];
-      if (direction === "JUMP") {
-        setJumping(true);
-        playJump();
-        await new Promise<void>((resolve) => {
-          jumpDoneResolveRef.current = resolve;
-        });
-      } else {
-        const next = moveGrid(currentPos, direction, gridSize, obstacles);
-        if (next) {
-          if (levelInfo && i < expanded.length - 1 &&
-              next.col === levelInfo.goal.col && next.row === levelInfo.goal.row) {
-            passedGoal = true;
-          }
-          currentPos = next;
-          playMove();
-          setIsAnimating(true);
-          setGridPos(next);
-          await new Promise<void>((resolve) => {
-            animDoneResolveRef.current = resolve;
-          });
-        }
-      }
-      await new Promise((r) => setTimeout(r, 200));
-    }
-    setProgIndex(-1);
+    const { finalPos, passedGoal } = await runner.runSteps({
+      steps,
+      startPos,
+      gridSize,
+      obstacles,
+      isPassthrough,
+    });
+
     setFinished(true);
-
     if (levelInfo && !passedGoal &&
-        currentPos.col === levelInfo.goal.col && currentPos.row === levelInfo.goal.row) {
+        finalPos.col === levelInfo.goal.col && finalPos.row === levelInfo.goal.row) {
       setLevelCleared(true);
     }
     playSuccess();
-  }, [steps, startPos, levelInfo, gridSize, obstacles]);
+  }, [steps, startPos, levelInfo, gridSize, obstacles, runner]);
 
   // Auto-play on mount
   useEffect(() => {
@@ -210,25 +164,8 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
       </div>
 
       <Canvas camera={{ position: [0, 5, 5], fov: 45 }} gl={{ antialias: true }} shadows>
-        <color attach="background" args={["#0d0d14"]} />
-        <fog attach="fog" args={["#0d0d14", 8, 18]} />
+        <SceneLighting />
         <CameraController is2D={is2D} gridSize={gridSize} />
-        <ambientLight intensity={1.0} />
-        <directionalLight
-          position={[3, 6, 4]}
-          intensity={1.2}
-          castShadow
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-          shadow-camera-near={0.5}
-          shadow-camera-far={20}
-          shadow-camera-left={-4}
-          shadow-camera-right={4}
-          shadow-camera-top={4}
-          shadow-camera-bottom={-4}
-          shadow-bias={-0.002}
-        />
-        <pointLight position={[0, 3, 0]} intensity={0.3} color="#aaccff" />
         <Ground />
         <Board gridSize={gridSize} />
         {levelInfo && (

@@ -80,18 +80,21 @@ const translations = {
   waitingForNtag: { ja: "NTAGを待っています...", en: "Waiting for NTAG...", es: "Esperando NTAG..." },
 } as const;
 
-type TranslationKey = keyof typeof translations;
+export type TranslationKey = keyof typeof translations;
 
 interface I18nContextType {
   locale: Locale;
   setLocale: (locale: Locale) => void;
   t: (key: TranslationKey) => string;
+  /** Dynamic key lookup (for config-driven keys). Returns key itself if not found. */
+  td: (key: string) => string;
 }
 
 const I18nContext = createContext<I18nContextType>({
   locale: "ja",
   setLocale: () => {},
   t: (key) => translations[key].ja,
+  td: (key) => (translations as Record<string, Record<string, string>>)[key]?.ja ?? key,
 });
 
 export function I18nProvider({ children }: { children: ReactNode }) {
@@ -114,8 +117,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     [locale],
   );
 
+  const td = useCallback(
+    (key: string) => (translations as Record<string, Record<string, string>>)[key]?.[locale] ?? key,
+    [locale],
+  );
+
   return (
-    <I18nContext.Provider value={{ locale, setLocale, t }}>
+    <I18nContext.Provider value={{ locale, setLocale, t, td }}>
       {children}
     </I18nContext.Provider>
   );

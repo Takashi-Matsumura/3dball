@@ -6,11 +6,17 @@ export interface LevelConfig {
   minDistance: number;
   hasChallenge: boolean;
   obstacleCount?: { min: number; max: number };
+  /** i18n key for theme text (e.g. "lv1Theme") */
+  themeKey: string;
+  /** i18n key for challenge theme text (e.g. "lv1ChallengeTheme") */
+  challengeThemeKey: string;
+  /** i18n key for level label (e.g. "lv1") */
+  labelKey: string;
 }
 
 export const LEVELS: Record<string, LevelConfig> = {
-  lv1: { id: "lv1", gridSize: 3, minDistance: 2, hasChallenge: true },
-  lv2: { id: "lv2", gridSize: 5, minDistance: 4, hasChallenge: true, obstacleCount: { min: 2, max: 4 } },
+  lv1: { id: "lv1", gridSize: 3, minDistance: 2, hasChallenge: true, themeKey: "lv1Theme", challengeThemeKey: "lv1ChallengeTheme", labelKey: "lv1" },
+  lv2: { id: "lv2", gridSize: 5, minDistance: 4, hasChallenge: true, obstacleCount: { min: 2, max: 4 }, themeKey: "lv2Theme", challengeThemeKey: "lv2ChallengeTheme", labelKey: "lv2" },
 };
 
 export type GridPos = { col: number; row: number };

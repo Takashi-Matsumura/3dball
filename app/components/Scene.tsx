@@ -85,6 +85,32 @@ export function Board({ gridSize = 3 }: { gridSize?: number }) {
   );
 }
 
+/** Shared scene environment: background, fog, lights */
+export function SceneLighting() {
+  return (
+    <>
+      <color attach="background" args={["#0d0d14"]} />
+      <fog attach="fog" args={["#0d0d14", 8, 18]} />
+      <ambientLight intensity={1.0} />
+      <directionalLight
+        position={[3, 6, 4]}
+        intensity={1.2}
+        castShadow
+        shadow-mapSize-width={1024}
+        shadow-mapSize-height={1024}
+        shadow-camera-near={0.5}
+        shadow-camera-far={20}
+        shadow-camera-left={-4}
+        shadow-camera-right={4}
+        shadow-camera-top={4}
+        shadow-camera-bottom={-4}
+        shadow-bias={-0.002}
+      />
+      <pointLight position={[0, 3, 0]} intensity={0.3} color="#aaccff" />
+    </>
+  );
+}
+
 export function Ground() {
   return (
     <mesh position={[0, -0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>

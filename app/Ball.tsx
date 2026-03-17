@@ -11,55 +11,20 @@ import {
   NFC_ICONS,
   moveGrid,
   encodeProgram,
-  expandProgramWithMap,
+  groupProgramForDisplay,
+  displayStepsToFlat,
 } from "@/lib/ball-shared";
-import { CameraController, Board, Ground, Sphere, CellMarker, TextSprite, ObstacleMarker } from "@/app/components/Scene";
+import { SceneLighting, CameraController, Board, Ground, Sphere, CellMarker, TextSprite, ObstacleMarker } from "@/app/components/Scene";
 import { playMove, playJump, playBump, playNfcScan, playSuccess, playBurst } from "@/lib/sounds";
 import { useLevel } from "@/lib/useLevel";
+import { useProgramRunner } from "@/lib/useProgramRunner";
 import { gridCenter, LEVELS } from "@/lib/levels";
 
-/** Grouped display of program steps: loop cards merged into the preceding direction */
-interface DisplayStep {
-  dir: string;
-  repeat: number;
-  rawIndices: number[];
-}
-
-function groupProgramForDisplay(program: string[]): DisplayStep[] {
-  const groups: DisplayStep[] = [];
-  for (let i = 0; i < program.length; i++) {
-    const s = program[i];
-    if (s === "X2" || s === "X3") {
-      if (groups.length === 0) continue;
-      const last = groups[groups.length - 1];
-      const n = s === "X2" ? 2 : 3;
-      last.repeat = last.repeat === 1 ? n : last.repeat + n;
-      last.rawIndices.push(i);
-    } else {
-      groups.push({ dir: s, repeat: 1, rawIndices: [i] });
-    }
-  }
-  return groups;
-}
-
-function displayStepsToFlat(groups: DisplayStep[]): string[] {
-  const result: string[] = [];
-  for (const { dir, repeat } of groups) {
-    result.push(dir);
-    if (repeat <= 1) continue;
-    let r = repeat;
-    if (r % 3 === 1 && r >= 4) { result.push("X2"); r -= 2; }
-    while (r >= 3) { result.push("X3"); r -= 3; }
-    while (r >= 2) { result.push("X2"); r -= 2; }
-  }
-  return result;
-}
-
 export default function Ball() {
-  const { locale, setLocale, t } = useI18n();
+  const { locale, setLocale, t, td } = useI18n();
   const level = useLevel();
-  const [gridPos, setGridPos] = useState({ col: 1, row: 1 });
-  const [isAnimating, setIsAnimating] = useState(false);
+  const runner = useProgramRunner();
+  const { gridPos, setGridPos, isAnimating, setIsAnimating, jumping, setJumping, progIndex, resetProgIndex, handleAnimDone, handleJumpDone } = runner;
   const [is2D, setIs2D] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [patternConfig, setPatternConfig] = useState<PatternConfig>({
@@ -68,7 +33,6 @@ export default function Ball() {
     color2: "#ffffff",
     scale: 20,
   });
-  const [jumping, setJumping] = useState(false);
   const [nfcConnected, setNfcConnected] = useState(false);
   const [nfcFlash, setNfcFlash] = useState<string | null>(null);
   const isAnimatingRef = useRef(false);
@@ -77,7 +41,6 @@ export default function Ball() {
   const [progMode, setProgMode] = useState(false);
   const [program, setProgram] = useState<string[]>([]);
   const [progRunning, setProgRunning] = useState(false);
-  const [progIndex, setProgIndex] = useState(-1);
   const progModeRef = useRef(false);
   const progStepsRef = useRef<HTMLDivElement>(null);
   const progRunningRef = useRef(false);
@@ -124,68 +87,28 @@ export default function Ball() {
   }, [gridPos, isAnimating, level.active, level.cleared, level.bursting, progMode]);
 
   // Run program step by step
-  const animDoneResolveRef = useRef<(() => void) | null>(null);
-  const jumpDoneResolveRef = useRef<(() => void) | null>(null);
   const burstDoneResolveRef = useRef<(() => void) | null>(null);
 
   const runProgram = useCallback(async () => {
     if (program.length === 0) return;
     setProgRunning(true);
 
-    // Reset level state or use center
     const startPos = level.active ? level.resetForRun().startPos : gridCenter(level.gridSize);
-    setGridPos(startPos);
-    setIsAnimating(false);
-    // Wait a frame for reset
-    await new Promise((r) => setTimeout(r, 100));
+    const { finalPos, passedGoal } = await runner.runSteps({
+      steps: program,
+      startPos,
+      gridSize: level.gridSize,
+      obstacles: level.obstacles,
+      isPassthrough: level.active ? level.isPassthrough : undefined,
+    });
 
-    // Expand x2/x3 loops
-    const { expanded, indexMap } = expandProgramWithMap(program);
-
-    let currentPos = { ...startPos };
-    let passedGoal = false;
-    for (let i = 0; i < expanded.length; i++) {
-      setProgIndex(indexMap[i]);
-      const direction = expanded[i];
-      if (direction === "JUMP") {
-        setJumping(true);
-        playJump();
-        await new Promise<void>((resolve) => {
-          jumpDoneResolveRef.current = resolve;
-        });
-      } else {
-        const next = moveGrid(currentPos, direction, level.gridSize, level.obstacles);
-        if (next) {
-          if (level.active && level.isPassthrough(next, i, expanded.length)) {
-            passedGoal = true;
-          }
-          currentPos = next;
-          playMove();
-          setIsAnimating(true);
-          setGridPos(next);
-          await new Promise<void>((resolve) => {
-            animDoneResolveRef.current = resolve;
-          });
-        }
-      }
-      // Small pause between steps
-      await new Promise((r) => setTimeout(r, 200));
-    }
-    setProgIndex(-1);
-
-    // Check result
     if (level.active) {
-      const result = level.checkRunResult(currentPos, passedGoal);
+      const result = level.checkRunResult(finalPos, passedGoal);
       if (result === "success") {
         level.setCleared(true);
         playSuccess();
-        setJumping(true);
-        playJump();
-        await new Promise<void>((resolve) => {
-          jumpDoneResolveRef.current = resolve;
-        });
+        await runner.triggerJump();
       } else {
-        // burst
         level.setBursting(true);
         playBurst();
         await new Promise<void>((resolve) => {
@@ -197,7 +120,7 @@ export default function Ball() {
     }
 
     setProgRunning(false);
-  }, [program, level]);
+  }, [program, level, runner]);
 
   const handleOpenNtagModal = useCallback(() => {
     if (program.length === 0 || !nfcConnected) return;
@@ -251,14 +174,6 @@ export default function Ball() {
     fetch("/api/nfc/write", { method: "DELETE" });
     setNtagWriting(false);
     setShowNtagModal(false);
-  }, []);
-
-  const handleAnimDone = useCallback(() => {
-    setIsAnimating(false);
-    if (animDoneResolveRef.current) {
-      animDoneResolveRef.current();
-      animDoneResolveRef.current = null;
-    }
   }, []);
 
   // NFC polling
@@ -324,14 +239,6 @@ export default function Ball() {
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
-  const handleJumpDone = useCallback(() => {
-    setJumping(false);
-    if (jumpDoneResolveRef.current) {
-      jumpDoneResolveRef.current();
-      jumpDoneResolveRef.current = null;
-    }
-  }, []);
-
   const handleBurstDone = useCallback(() => {
     // Programming mode: resolve the awaited promise
     if (burstDoneResolveRef.current) {
@@ -354,7 +261,7 @@ export default function Ball() {
         if (progMode) {
           setProgMode(false);
           setProgram([]);
-          setProgIndex(-1);
+          resetProgIndex();
           setProgRunning(false);
         } else {
           setProgMode(true);
@@ -367,18 +274,23 @@ export default function Ball() {
         setShowSettings((v) => !v);
         return;
       }
-      // F1/F2 → toggle level mode
-      if (e.key === "F1" || e.key === "F2") {
-        e.preventDefault();
-        const id = e.key === "F1" ? "lv1" : "lv2";
-        if (level.levelId === id) {
-          const center = level.deactivate();
-          setGridPos(center);
-        } else {
-          const pos = level.activate(id);
-          setGridPos(pos);
+      // F1..Fn → toggle level mode (mapped to LEVELS order)
+      const levelIds = Object.keys(LEVELS);
+      const fKeyMatch = e.key.match(/^F(\d+)$/);
+      if (fKeyMatch) {
+        const idx = Number(fKeyMatch[1]) - 1;
+        if (idx >= 0 && idx < levelIds.length) {
+          e.preventDefault();
+          const id = levelIds[idx];
+          if (level.levelId === id) {
+            const center = level.deactivate();
+            setGridPos(center);
+          } else {
+            const pos = level.activate(id);
+            setGridPos(pos);
+          }
+          return;
         }
-        return;
       }
       // Escape → exit level mode
       if (e.key === "Escape" && level.active) {
@@ -414,7 +326,7 @@ export default function Ball() {
         if (e.key === "Enter" && e.shiftKey && !progRunning) {
           e.preventDefault();
           setProgram([]);
-          setProgIndex(-1);
+          resetProgIndex();
           if (level.active) {
             const pos = level.generate();
             setGridPos(pos);
@@ -484,7 +396,7 @@ export default function Ball() {
               onClick={() => {
                 setProgMode(false);
                 setProgram([]);
-                setProgIndex(-1);
+                resetProgIndex();
                 setProgRunning(false);
               }}
               className="px-3 py-2 transition border-r border-gray-200 bg-gray-200 hover:bg-gray-300 text-black/70"
@@ -506,7 +418,7 @@ export default function Ball() {
             <button
               onClick={() => {
                 setProgram([]);
-                setProgIndex(-1);
+                resetProgIndex();
                 if (level.active) {
                   const pos = level.generate();
                   setGridPos(pos);
@@ -614,11 +526,11 @@ export default function Ball() {
             </div>
           )}
           {/* Theme text */}
-          {(!level.cleared || progMode) && (
+          {(!level.cleared || progMode) && level.config && (
             <div className="text-xl font-bold text-yellow-300 drop-shadow-md" style={{ textShadow: "0 0 10px rgba(255,200,0,0.6)" }}>
               {level.challenge !== null
-                ? `${level.challenge}${t(level.levelId === "lv2" ? "lv2ChallengeTheme" : "lv1ChallengeTheme")}`
-                : t(level.levelId === "lv2" ? "lv2Theme" : "lv1Theme")}
+                ? `${level.challenge}${td(level.config.challengeThemeKey)}`
+                : td(level.config.themeKey)}
             </div>
           )}
           {/* Action buttons row */}
@@ -792,8 +704,8 @@ export default function Ball() {
                   : "bg-white/20 text-white/60 hover:bg-white/30"
               }`}
             >
-              {t(id as "lv1" | "lv2")}
-              <kbd className="ml-1 rounded bg-white/15 px-1 py-0.5 text-[9px] font-mono opacity-60">{id === "lv1" ? "F1" : "F2"}</kbd>
+              {td(LEVELS[id].labelKey)}
+              <kbd className="ml-1 rounded bg-white/15 px-1 py-0.5 text-[9px] font-mono opacity-60">{`F${Object.keys(LEVELS).indexOf(id) + 1}`}</kbd>
             </button>
           ))}
         </div>
@@ -917,25 +829,8 @@ export default function Ball() {
       )}
 
       <Canvas camera={{ position: [0, 5, 5], fov: 45 }} gl={{ antialias: true }} shadows>
-        <color attach="background" args={["#0d0d14"]} />
-        <fog attach="fog" args={["#0d0d14", 8, 18]} />
+        <SceneLighting />
         <CameraController is2D={is2D} gridSize={level.gridSize} />
-        <ambientLight intensity={1.0} />
-        <directionalLight
-          position={[3, 6, 4]}
-          intensity={1.2}
-          castShadow
-          shadow-mapSize-width={1024}
-          shadow-mapSize-height={1024}
-          shadow-camera-near={0.5}
-          shadow-camera-far={20}
-          shadow-camera-left={-4}
-          shadow-camera-right={4}
-          shadow-camera-top={4}
-          shadow-camera-bottom={-4}
-          shadow-bias={-0.002}
-        />
-        <pointLight position={[0, 3, 0]} intensity={0.3} color="#aaccff" />
         <Ground />
         <Board gridSize={level.gridSize} />
         {level.active && (!level.cleared || progMode) && (
