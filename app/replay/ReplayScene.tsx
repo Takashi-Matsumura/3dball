@@ -172,7 +172,7 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
       </div>
 
       <Canvas camera={{ position: [0, 5, 5], fov: 45 }} gl={{ antialias: true }} shadows>
-        <SceneLighting />
+        <SceneLighting gridSize={gridSize} />
         <CameraController is2D={is2D} gridSize={gridSize} />
         <Ground />
         <Board gridSize={gridSize} />

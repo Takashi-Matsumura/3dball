@@ -87,11 +87,12 @@ export function Board({ gridSize = 3 }: { gridSize?: number }) {
 }
 
 /** Shared scene environment: background, fog, lights */
-export function SceneLighting() {
+export function SceneLighting({ gridSize = 3 }: { gridSize?: number }) {
+  const fogScale = gridSize / 3;
   return (
     <>
       <color attach="background" args={["#0d0d14"]} />
-      <fog attach="fog" args={["#0d0d14", 8, 18]} />
+      <fog attach="fog" args={["#0d0d14", 8 * fogScale, 18 * fogScale]} />
       <ambientLight intensity={1.0} />
       <directionalLight
         position={[3, 6, 4]}

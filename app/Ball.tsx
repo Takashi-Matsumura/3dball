@@ -75,6 +75,8 @@ export default function Ball() {
 
   // Keep ref in sync for NFC polling callback
   useEffect(() => { isAnimatingRef.current = isAnimating; }, [isAnimating]);
+  const levelRef = useRef(level);
+  useEffect(() => { levelRef.current = level; }, [level]);
 
   // Consecutive branch counter for deadlock detection
   const branchChainRef = useRef(0);
@@ -250,7 +252,7 @@ export default function Ball() {
               }
               // BRANCH card: only allowed in Lv3 (levels with branchCount)
               if (cardId === "BRANCH") {
-                if (!level.config?.branchCount) return prev;
+                if (!levelRef.current.config?.branchCount) return prev;
                 const lastNonStruct = [...prev].reverse().find((s) => s !== "X2" && s !== "X3");
                 if (!lastNonStruct || !["UP", "DOWN", "LEFT", "RIGHT"].includes(lastNonStruct)) return prev;
                 // No nested P: if already inside a P-block, reject
@@ -303,7 +305,7 @@ export default function Ball() {
             playJump();
           } else {
             setGridPos((prev) => {
-              const next = moveGrid(prev, cardId, level.gridSize, level.obstacles);
+              const next = moveGrid(prev, cardId, levelRef.current.gridSize, levelRef.current.obstacles);
               if (!next) {
                 playBump();
                 return prev;
@@ -1063,7 +1065,7 @@ export default function Ball() {
       )}
 
       <Canvas camera={{ position: [0, 5, 5], fov: 45 }} gl={{ antialias: true }} shadows>
-        <SceneLighting />
+        <SceneLighting gridSize={level.gridSize} />
         <CameraController is2D={is2D} gridSize={level.gridSize} />
         <Ground />
         <Board gridSize={level.gridSize} />
