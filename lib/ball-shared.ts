@@ -72,8 +72,13 @@ export const CAMERA_2D = {
   up: [0, 0, -1] as const,
 };
 
-export const NFC_DIRECTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "JUMP", "X2", "X3"] as const;
-export const NFC_ICONS: Record<string, string> = { UP: "⬆", DOWN: "⬇", LEFT: "⬅", RIGHT: "➡", JUMP: "⤴", X2: "×2", X3: "×3" };
+export const NFC_DIRECTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "JUMP", "X2", "X3", "BRANCH"] as const;
+export const NFC_ICONS: Record<string, string> = { UP: "⬆", DOWN: "⬇", LEFT: "⬅", RIGHT: "➡", JUMP: "⤴", X2: "×2", X3: "×3", BRANCH: "❓", PIPE: "|", SLASH: "/" };
+
+/** Check if a direction is horizontal (LEFT or RIGHT) */
+export function isHorizontalDir(dir: string): boolean {
+  return dir === "LEFT" || dir === "RIGHT";
+}
 
 export function moveGrid(
   prev: { col: number; row: number },
@@ -193,8 +198,36 @@ function bfsPath_(
   return null;
 }
 
-const DIRECTION_CHARS: Record<string, string> = { UP: "U", DOWN: "D", LEFT: "L", RIGHT: "R", JUMP: "J", X2: "2", X3: "3" };
-const CHAR_DIRECTIONS: Record<string, string> = { U: "UP", D: "DOWN", L: "LEFT", R: "RIGHT", J: "JUMP", "2": "X2", "3": "X3" };
+/** Find the index of the matching SLASH for a BRANCH token at branchIndex.
+ *  Handles nested BRANCH/SLASH pairs via depth tracking.
+ *  Returns tokens.length if no matching SLASH is found. */
+export function findMatchingSlash(tokens: string[], branchIndex: number): number {
+  let depth = 0;
+  let j = branchIndex + 1;
+  while (j < tokens.length) {
+    if (tokens[j] === "BRANCH") depth++;
+    if (tokens[j] === "SLASH") {
+      if (depth === 0) return j;
+      depth--;
+    }
+    j++;
+  }
+  return tokens.length;
+}
+
+/** Split a P-block (BRANCH...PIPE...SLASH) into if/else bodies.
+ *  Returns the two body arrays and the index of the closing SLASH. */
+export function splitPBlock(tokens: string[], branchIndex: number): { ifBody: string[]; elseBody: string[]; endIndex: number } {
+  const endIndex = findMatchingSlash(tokens, branchIndex);
+  const blockContent = tokens.slice(branchIndex + 1, endIndex);
+  const pipePos = blockContent.indexOf("PIPE");
+  const ifBody = pipePos >= 0 ? blockContent.slice(0, pipePos) : blockContent;
+  const elseBody = pipePos >= 0 ? blockContent.slice(pipePos + 1) : [];
+  return { ifBody, elseBody, endIndex };
+}
+
+const DIRECTION_CHARS: Record<string, string> = { UP: "U", DOWN: "D", LEFT: "L", RIGHT: "R", JUMP: "J", X2: "2", X3: "3", BRANCH: "B", PIPE: "E", SLASH: "F" };
+const CHAR_DIRECTIONS: Record<string, string> = { U: "UP", D: "DOWN", L: "LEFT", R: "RIGHT", J: "JUMP", "2": "X2", "3": "X3", B: "BRANCH", E: "PIPE", F: "SLASH" };
 
 export function encodeProgram(steps: string[]): string {
   return steps.map((s) => DIRECTION_CHARS[s] || "").join("");
@@ -246,6 +279,39 @@ export function expandProgramWithMap(steps: string[]): { expanded: string[]; ind
         totalRepeat += n;
       }
       baseIndex = i;
+    } else if (s === "BRANCH") {
+      // P-block: flush any pending repeat, then copy the entire P-block as-is
+      // (with internal X2/X3 expanded within each body)
+      flush();
+      // The direction before P was already pushed; keep it.
+      // Push P token
+      expanded.push("BRANCH");
+      indexMap.push(i);
+      // Extract if-body and else-body, expand X2/X3 within each
+      const { ifBody: ifRaw, elseBody: elseRaw, endIndex: j } = splitPBlock(steps, i);
+      const ifExpanded = expandProgramWithMap(ifRaw);
+      const elseExpanded = expandProgramWithMap(elseRaw);
+      // Push expanded if-body
+      for (let k = 0; k < ifExpanded.expanded.length; k++) {
+        expanded.push(ifExpanded.expanded[k]);
+        indexMap.push(i); // map to the P token index
+      }
+      // Push PIPE
+      expanded.push("PIPE");
+      indexMap.push(i);
+      // Push expanded else-body
+      for (let k = 0; k < elseExpanded.expanded.length; k++) {
+        expanded.push(elseExpanded.expanded[k]);
+        indexMap.push(i);
+      }
+      // Push SLASH
+      expanded.push("SLASH");
+      indexMap.push(i);
+      // Skip past the block in the source
+      i = j; // the for loop will i++ past SLASH
+    } else if (s === "PIPE" || s === "SLASH") {
+      // These are handled by the P-block parser above; skip if encountered at top level
+      flush();
     } else {
       flush();
       baseCommand = s;
@@ -261,10 +327,25 @@ export function expandProgramWithMap(steps: string[]): { expanded: string[]; ind
 }
 
 /** Grouped display of program steps: loop cards merged into the preceding direction */
+export interface PBlock {
+  ifLabel: string;
+  elseLabel: string;
+  ifSteps: DisplayStep[];
+  elseSteps: DisplayStep[];
+}
+
 export interface DisplayStep {
   dir: string;
   repeat: number;
   rawIndices: number[];
+  pBlock?: PBlock;
+}
+
+/** Get the if/else labels for a P-block based on the direction card it's attached to */
+function pBlockLabels(dir: string): { ifLabel: string; elseLabel: string } {
+  return isHorizontalDir(dir)
+    ? { ifLabel: "UP", elseLabel: "DOWN" }
+    : { ifLabel: "RIGHT", elseLabel: "LEFT" };
 }
 
 export function groupProgramForDisplay(program: string[]): DisplayStep[] {
@@ -277,6 +358,23 @@ export function groupProgramForDisplay(program: string[]): DisplayStep[] {
       const n = s === "X2" ? 2 : 3;
       last.repeat = last.repeat === 1 ? n : last.repeat + n;
       last.rawIndices.push(i);
+    } else if (s === "BRANCH") {
+      if (groups.length === 0) continue;
+      const last = groups[groups.length - 1];
+      last.rawIndices.push(i);
+      // Find matching SLASH and split into if/else bodies
+      const { ifBody: ifRaw, elseBody: elseRaw, endIndex: j } = splitPBlock(program, i);
+      const labels = pBlockLabels(last.dir);
+      last.pBlock = {
+        ...labels,
+        ifSteps: groupProgramForDisplay(ifRaw),
+        elseSteps: groupProgramForDisplay(elseRaw),
+      };
+      // Collect all raw indices in the block
+      for (let k = i + 1; k <= j; k++) last.rawIndices.push(k);
+      i = j; // skip past SLASH
+    } else if (s === "PIPE" || s === "SLASH") {
+      // structural tokens — skip at top level
     } else {
       groups.push({ dir: s, repeat: 1, rawIndices: [i] });
     }
@@ -286,13 +384,21 @@ export function groupProgramForDisplay(program: string[]): DisplayStep[] {
 
 export function displayStepsToFlat(groups: DisplayStep[]): string[] {
   const result: string[] = [];
-  for (const { dir, repeat } of groups) {
+  for (const { dir, repeat, pBlock } of groups) {
     result.push(dir);
-    if (repeat <= 1) continue;
-    let r = repeat;
-    if (r % 3 === 1 && r >= 4) { result.push("X2"); r -= 2; }
-    while (r >= 3) { result.push("X3"); r -= 3; }
-    while (r >= 2) { result.push("X2"); r -= 2; }
+    if (repeat > 1) {
+      let r = repeat;
+      if (r % 3 === 1 && r >= 4) { result.push("X2"); r -= 2; }
+      while (r >= 3) { result.push("X3"); r -= 3; }
+      while (r >= 2) { result.push("X2"); r -= 2; }
+    }
+    if (pBlock) {
+      result.push("BRANCH");
+      result.push(...displayStepsToFlat(pBlock.ifSteps));
+      result.push("PIPE");
+      result.push(...displayStepsToFlat(pBlock.elseSteps));
+      result.push("SLASH");
+    }
   }
   return result;
 }

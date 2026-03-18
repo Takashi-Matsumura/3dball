@@ -46,6 +46,13 @@ export default function Ball() {
   const progRunningRef = useRef(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  // P-block editing: which branch block is being edited
+  const [pBlockEditing, setPBlockEditingState] = useState<"none" | "if" | "else">("none");
+  const pBlockEditingRef = useRef<"none" | "if" | "else">("none");
+  const setPBlockEditing = useCallback((v: "none" | "if" | "else") => {
+    pBlockEditingRef.current = v;
+    setPBlockEditingState(v);
+  }, []);
 
   // NTAG write
   const [showNtagModal, setShowNtagModal] = useState(false);
@@ -81,6 +88,7 @@ export default function Ball() {
     // Check for auto-branch on "?" cell
     const { isBranch, branchDir } = level.checkBranch(gridPos);
     if (isBranch && branchDir && !jumping) {
+      level.setBranchUsed(true);
       branchChainRef.current += 1;
       // Deadlock: 7 consecutive branches → burst
       if (branchChainRef.current >= 7) {
@@ -130,16 +138,23 @@ export default function Ball() {
     setProgRunning(true);
 
     const startPos = level.active ? level.resetForRun().startPos : gridCenter(level.gridSize);
-    const { finalPos, passedGoal } = await runner.runSteps({
+    const { finalPos, passedGoal, burstFromBranch, branchUsed } = await runner.runSteps({
       steps: program,
       startPos,
       gridSize: level.gridSize,
       obstacles: level.obstacles,
+      branchCells: level.branchCells,
       isPassthrough: level.active ? level.isPassthrough : undefined,
     });
 
-    if (level.active) {
-      const result = level.checkRunResult(finalPos, passedGoal);
+    if (burstFromBranch) {
+      level.setBursting(true);
+      playBurst();
+      await new Promise<void>((resolve) => {
+        burstDoneResolveRef.current = resolve;
+      });
+    } else if (level.active) {
+      const result = level.checkRunResult(finalPos, passedGoal, branchUsed);
       if (result === "success") {
         level.setCleared(true);
         playSuccess();
@@ -229,8 +244,44 @@ export default function Ball() {
           // Programming mode: add to program instead of moving
           if (progModeRef.current && !progRunningRef.current) {
             setProgram((prev) => {
-              if ((cardId === "X2" || cardId === "X3") && !prev.some((s) => s !== "X2" && s !== "X3")) {
+              // X2/X3: must have preceding direction
+              if ((cardId === "X2" || cardId === "X3") && !prev.some((s) => s !== "X2" && s !== "X3" && s !== "BRANCH" && s !== "PIPE" && s !== "SLASH")) {
                 return prev;
+              }
+              // BRANCH card: only allowed in Lv3 (levels with branchCount)
+              if (cardId === "BRANCH") {
+                if (!level.config?.branchCount) return prev;
+                const lastNonStruct = [...prev].reverse().find((s) => s !== "X2" && s !== "X3");
+                if (!lastNonStruct || !["UP", "DOWN", "LEFT", "RIGHT"].includes(lastNonStruct)) return prev;
+                // No nested P: if already inside a P-block, reject
+                if (pBlockEditingRef.current !== "none") return prev;
+                // Start P-block editing
+                pBlockEditingRef.current = "if";
+                setPBlockEditingState("if");
+                return [...prev, "BRANCH"];
+              }
+              // Editing P-block body: insert at the correct position
+              if (pBlockEditingRef.current !== "none") {
+                if (!["UP", "DOWN", "LEFT", "RIGHT", "JUMP", "X2", "X3"].includes(cardId)) return prev;
+                const result = [...prev];
+                if (pBlockEditingRef.current === "if") {
+                  // Insert before PIPE (or at end if no PIPE yet)
+                  const pipeIdx = result.lastIndexOf("PIPE");
+                  if (pipeIdx >= 0) {
+                    result.splice(pipeIdx, 0, cardId);
+                  } else {
+                    result.push(cardId);
+                  }
+                } else {
+                  // Insert before SLASH (or at end if no SLASH yet)
+                  const slashIdx = result.lastIndexOf("SLASH");
+                  if (slashIdx >= 0) {
+                    result.splice(slashIdx, 0, cardId);
+                  } else {
+                    result.push(cardId);
+                  }
+                }
+                return result;
               }
               return [...prev, cardId];
             });
@@ -244,8 +295,8 @@ export default function Ball() {
           if (progModeRef.current) continue; // skip during run
           if (isAnimatingRef.current) continue;
 
-          // Skip loop cards in free move mode
-          if (cardId === "X2" || cardId === "X3") continue;
+          // Skip loop/branch cards in free move mode
+          if (cardId === "X2" || cardId === "X3" || cardId === "BRANCH") continue;
 
           if (cardId === "JUMP") {
             setJumping(true);
@@ -299,6 +350,7 @@ export default function Ball() {
           setProgram([]);
           resetProgIndex();
           setProgRunning(false);
+          setPBlockEditing("none");
         } else {
           setProgMode(true);
         }
@@ -335,12 +387,17 @@ export default function Ball() {
         setGridPos(center);
         return;
       }
-      // Tab → generate challenge when level active
+      // Tab → generate challenge (hasChallenge) or new map (!hasChallenge)
       if (e.key === "Tab" && level.active && !level.cleared) {
         e.preventDefault();
-        const pos = level.newChallenge();
-        setGridPos(pos);
-        setIsAnimating(false);
+        if (level.config?.hasChallenge) {
+          const pos = level.newChallenge();
+          setGridPos(pos);
+          setIsAnimating(false);
+        } else {
+          const pos = level.generate();
+          setGridPos(pos);
+        }
         return;
       }
       // Enter → next challenge when level cleared (non-prog mode)
@@ -363,6 +420,7 @@ export default function Ball() {
           e.preventDefault();
           setProgram([]);
           resetProgIndex();
+          setPBlockEditing("none");
           if (level.active) {
             const pos = level.generate();
             setGridPos(pos);
@@ -434,6 +492,7 @@ export default function Ball() {
                 setProgram([]);
                 resetProgIndex();
                 setProgRunning(false);
+                setPBlockEditing("none");
               }}
               className="px-3 py-2 transition border-r border-gray-200 bg-gray-200 hover:bg-gray-300 text-black/70"
               title={t("close")}
@@ -455,6 +514,7 @@ export default function Ball() {
               onClick={() => {
                 setProgram([]);
                 resetProgIndex();
+                setPBlockEditing("none");
                 if (level.active) {
                   const pos = level.generate();
                   setGridPos(pos);
@@ -479,52 +539,178 @@ export default function Ball() {
                 displaySteps.map((group, gi) => {
                   const isHighlighted = group.rawIndices.includes(progIndex);
                   return (
-                    <div
-                      key={gi}
-                      draggable={!progRunning}
-                      onDragStart={() => setDragIndex(gi)}
-                      onDragOver={(e) => { e.preventDefault(); setDragOverIndex(gi); }}
-                      onDragEnd={() => {
-                        if (dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
-                          const reordered = [...displaySteps];
-                          const [item] = reordered.splice(dragIndex, 1);
-                          reordered.splice(dragOverIndex, 0, item);
-                          setProgram(displayStepsToFlat(reordered));
-                        }
-                        setDragIndex(null);
-                        setDragOverIndex(null);
-                      }}
-                      className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                        isHighlighted
-                          ? "bg-yellow-300 scale-105"
-                          : dragOverIndex === gi && dragIndex !== null && dragIndex !== gi
-                            ? "bg-blue-100 border-t-2 border-blue-400"
-                            : dragIndex === gi
-                              ? "bg-gray-200 opacity-50"
-                              : "bg-gray-100"
-                      }`}
-                      style={{ cursor: progRunning ? "default" : "grab" }}
-                    >
-                      {!progRunning && (
-                        <span className="text-gray-300 text-xs cursor-grab select-none">☰</span>
-                      )}
-                      <span className="text-xs text-gray-400 w-4 text-right">{gi + 1}</span>
-                      <span className="text-lg">{NFC_ICONS[group.dir]}</span>
-                      <span className="text-xs text-gray-600">{group.dir}</span>
-                      {group.repeat > 1 && (
-                        <span className="text-xs font-bold text-pink-600">×{group.repeat}</span>
-                      )}
-                      {!progRunning && (
-                        <button
-                          onClick={() => {
-                            const groups = groupProgramForDisplay(program);
-                            groups.splice(gi, 1);
-                            setProgram(displayStepsToFlat(groups));
-                          }}
-                          className="ml-auto text-gray-400 hover:text-red-500 text-xs"
-                        >
-                          ✕
-                        </button>
+                    <div key={gi}>
+                      {/* Main step row */}
+                      <div
+                        draggable={!progRunning && !group.pBlock}
+                        onDragStart={() => setDragIndex(gi)}
+                        onDragOver={(e) => { e.preventDefault(); setDragOverIndex(gi); }}
+                        onDragEnd={() => {
+                          if (dragIndex !== null && dragOverIndex !== null && dragIndex !== dragOverIndex) {
+                            const reordered = [...displaySteps];
+                            const [item] = reordered.splice(dragIndex, 1);
+                            reordered.splice(dragOverIndex, 0, item);
+                            setProgram(displayStepsToFlat(reordered));
+                          }
+                          setDragIndex(null);
+                          setDragOverIndex(null);
+                        }}
+                        className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                          isHighlighted
+                            ? "bg-yellow-300 scale-105"
+                            : dragOverIndex === gi && dragIndex !== null && dragIndex !== gi
+                              ? "bg-blue-100 border-t-2 border-blue-400"
+                              : dragIndex === gi
+                                ? "bg-gray-200 opacity-50"
+                                : "bg-gray-100"
+                        }`}
+                        style={{ cursor: progRunning ? "default" : group.pBlock ? "default" : "grab" }}
+                      >
+                        {!progRunning && !group.pBlock && (
+                          <span className="text-gray-300 text-xs cursor-grab select-none">☰</span>
+                        )}
+                        <span className="text-xs text-gray-400 w-4 text-right">{gi + 1}</span>
+                        <span className="text-lg">{NFC_ICONS[group.dir]}</span>
+                        <span className="text-xs text-gray-600">{group.dir}</span>
+                        {group.repeat > 1 && (
+                          <span className="text-xs font-bold text-pink-600">×{group.repeat}</span>
+                        )}
+                        {group.pBlock && (
+                          <span className="text-xs font-bold text-purple-600">🔀</span>
+                        )}
+                        {!progRunning && (
+                          <button
+                            onClick={() => {
+                              const groups = groupProgramForDisplay(program);
+                              groups.splice(gi, 1);
+                              setProgram(displayStepsToFlat(groups));
+                              setPBlockEditing("none");
+                            }}
+                            className="ml-auto text-gray-400 hover:text-red-500 text-xs"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* P-block if/else UI */}
+                      {group.pBlock && (
+                        <div className="ml-4 mt-1 mb-1 border-l-2 border-purple-300 pl-2 flex flex-col gap-1">
+                          {/* if block */}
+                          <div
+                            onClick={() => !progRunning && setPBlockEditing("if")}
+                            className={`rounded px-2 py-1 text-xs font-bold ${
+                              pBlockEditing === "if" ? "bg-purple-100 ring-2 ring-purple-400" : "bg-gray-50 hover:bg-purple-50"
+                            } ${!progRunning ? "cursor-pointer" : ""}`}
+                          >
+                            <span className="text-purple-600">{t("ifBlock")} ({NFC_ICONS[group.pBlock.ifLabel]} {group.pBlock.ifLabel})</span>
+                          </div>
+                          {group.pBlock.ifSteps.length > 0 ? (
+                            group.pBlock.ifSteps.map((sub, si) => (
+                              <div key={`if-${si}`} className="flex items-center gap-2 rounded px-3 py-1 text-xs bg-purple-50 ml-2">
+                                <span className="text-lg">{NFC_ICONS[sub.dir]}</span>
+                                <span className="text-gray-600">{sub.dir}</span>
+                                {sub.repeat > 1 && <span className="font-bold text-pink-600">×{sub.repeat}</span>}
+                                {!progRunning && (
+                                  <button
+                                    onClick={() => {
+                                      const groups = groupProgramForDisplay(program);
+                                      const g = groups[gi];
+                                      if (g.pBlock) {
+                                        g.pBlock.ifSteps.splice(si, 1);
+                                        setProgram(displayStepsToFlat(groups));
+                                      }
+                                    }}
+                                    className="ml-auto text-gray-400 hover:text-red-500 text-[10px]"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-[10px] text-gray-400 ml-2 py-1">
+                              {pBlockEditing === "if" ? "← カードをスキャン" : "—"}
+                            </div>
+                          )}
+
+                          {/* else block */}
+                          <div
+                            onClick={() => !progRunning && setPBlockEditing("else")}
+                            className={`rounded px-2 py-1 text-xs font-bold ${
+                              pBlockEditing === "else" ? "bg-purple-100 ring-2 ring-purple-400" : "bg-gray-50 hover:bg-purple-50"
+                            } ${!progRunning ? "cursor-pointer" : ""}`}
+                          >
+                            <span className="text-purple-600">{t("elseBlock")} ({NFC_ICONS[group.pBlock.elseLabel]} {group.pBlock.elseLabel})</span>
+                          </div>
+                          {group.pBlock.elseSteps.length > 0 ? (
+                            group.pBlock.elseSteps.map((sub, si) => (
+                              <div key={`else-${si}`} className="flex items-center gap-2 rounded px-3 py-1 text-xs bg-purple-50 ml-2">
+                                <span className="text-lg">{NFC_ICONS[sub.dir]}</span>
+                                <span className="text-gray-600">{sub.dir}</span>
+                                {sub.repeat > 1 && <span className="font-bold text-pink-600">×{sub.repeat}</span>}
+                                {!progRunning && (
+                                  <button
+                                    onClick={() => {
+                                      const groups = groupProgramForDisplay(program);
+                                      const g = groups[gi];
+                                      if (g.pBlock) {
+                                        g.pBlock.elseSteps.splice(si, 1);
+                                        setProgram(displayStepsToFlat(groups));
+                                      }
+                                    }}
+                                    className="ml-auto text-gray-400 hover:text-red-500 text-[10px]"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-[10px] text-gray-400 ml-2 py-1">
+                              {pBlockEditing === "else" ? "← カードをスキャン" : "—"}
+                            </div>
+                          )}
+
+                          {/* P-block control buttons */}
+                          {!progRunning && pBlockEditing !== "none" && (
+                            <div className="flex gap-1 mt-1">
+                              {pBlockEditing === "if" && !program.includes("PIPE") && (
+                                <button
+                                  onClick={() => {
+                                    setProgram((prev) => [...prev, "PIPE"]);
+                                    setPBlockEditing("else");
+                                  }}
+                                  className="flex-1 rounded px-2 py-1 text-[10px] font-bold bg-purple-200 text-purple-700 hover:bg-purple-300 transition"
+                                >
+                                  {t("tapElse")}
+                                </button>
+                              )}
+                              {pBlockEditing === "if" && program.includes("PIPE") && (
+                                <button
+                                  onClick={() => setPBlockEditing("else")}
+                                  className="flex-1 rounded px-2 py-1 text-[10px] font-bold bg-purple-200 text-purple-700 hover:bg-purple-300 transition"
+                                >
+                                  {t("tapElse")}
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setProgram((prev) => {
+                                    const result = [...prev];
+                                    if (!result.includes("PIPE")) result.push("PIPE");
+                                    if (!result.includes("SLASH")) result.push("SLASH");
+                                    return result;
+                                  });
+                                  setPBlockEditing("none");
+                                }}
+                                className="flex-1 rounded px-2 py-1 text-[10px] font-bold bg-gray-200 text-gray-600 hover:bg-gray-300 transition"
+                              >
+                                {t("closePBlock")}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
@@ -571,7 +757,7 @@ export default function Ball() {
           )}
           {/* Action buttons row */}
           <div className="flex items-center gap-2 mt-1">
-            {(!level.cleared || progMode) && (
+            {level.config?.hasChallenge && (!level.cleared || progMode) && (
               <button
                 onClick={() => {
                   const pos = level.newChallenge();
@@ -581,6 +767,18 @@ export default function Ball() {
                 className="flex items-center gap-1.5 rounded px-3 py-1 text-xs font-bold bg-white/20 text-white/80 hover:bg-white/30 transition backdrop-blur"
               >
                 {t("lv1Challenge")}
+                <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono text-white/60">Tab</kbd>
+              </button>
+            )}
+            {!level.config?.hasChallenge && !level.cleared && !progMode && (
+              <button
+                onClick={() => {
+                  const pos = level.generate();
+                  setGridPos(pos);
+                }}
+                className="flex items-center gap-1.5 rounded px-3 py-1 text-xs font-bold bg-white/20 text-white/80 hover:bg-white/30 transition backdrop-blur"
+              >
+                {t("newMap")}
                 <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono text-white/60">Tab</kbd>
               </button>
             )}

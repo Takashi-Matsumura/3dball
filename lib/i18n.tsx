@@ -69,10 +69,16 @@ const translations = {
   lv3Theme: { ja: "？で分岐してゴール！", en: "Branch at ? to Goal!", es: "¡Bifurca en ? a la meta!" },
   lv3ChallengeTheme: { ja: "回で？を使ってゴール！", en: " moves, use ? to Goal!", es: " movimientos, ¡usa ?!" },
 
-  // Loop cards
-  dirX2: { ja: "×2 (くりかえし)", en: "\u00d72 (Repeat)", es: "\u00d72 (Repetir)" },
-  dirX3: { ja: "×3 (くりかえし)", en: "\u00d73 (Repeat)", es: "\u00d73 (Repetir)" },
+  // Loop cards & branch
+  dirX2: { ja: "×2 (Loop2)", en: "\u00d72 (Loop2)", es: "\u00d72 (Loop2)" },
+  dirX3: { ja: "×3 (Loop3)", en: "\u00d73 (Loop3)", es: "\u00d73 (Loop3)" },
+  dirBranch: { ja: "？ (Which?)", en: "? (Which?)", es: "? (Which?)" },
+  ifBlock: { ja: "もし", en: "if", es: "si" },
+  elseBlock: { ja: "それ以外", en: "else", es: "si no" },
+  tapElse: { ja: "else に切替", en: "Switch to else", es: "Cambiar a else" },
+  closePBlock: { ja: "分岐を閉じる", en: "Close branch", es: "Cerrar bifurcación" },
   nextChallenge: { ja: "つぎへ", en: "Next", es: "Siguiente" },
+  newMap: { ja: "マップ変更", en: "New Map", es: "Nuevo mapa" },
   start: { ja: "スタート", en: "START", es: "INICIO" },
   goal: { ja: "ゴール", en: "GOAL", es: "META" },
 

@@ -1,5 +1,5 @@
 import { decodeProgram } from "@/lib/ball-shared";
-import { LEVELS, decodeObstacles } from "@/lib/levels";
+import { LEVELS, decodeObstacles, decodeBranchCells } from "@/lib/levels";
 import ReplayScene from "./ReplayScene";
 
 export default async function ReplayPage({
@@ -22,6 +22,7 @@ export default async function ReplayPage({
   const gr = typeof params.gr === "string" ? params.gr : "";
   const ch = typeof params.ch === "string" ? params.ch : "";
   const ob = typeof params.ob === "string" ? params.ob : "";
+  const br = typeof params.br === "string" ? params.br : "";
 
   const steps = decodeProgram(p);
 
@@ -42,6 +43,7 @@ export default async function ReplayPage({
   const levelConfig = lv && LEVELS[lv] ? LEVELS[lv] : null;
   const gridSize = levelConfig?.gridSize ?? 3;
   const obstacles = ob ? decodeObstacles(ob) : [];
+  const branchCells = br ? decodeBranchCells(br) : [];
 
   return (
     <ReplayScene
@@ -53,6 +55,7 @@ export default async function ReplayPage({
       createdAt={t ? Number(t) * 1000 : undefined}
       gridSize={hasLevel ? gridSize : undefined}
       obstacles={obstacles}
+      branchCells={branchCells}
       levelInfo={hasLevel ? {
         start: { col: Number(sc), row: Number(sr) },
         goal: { col: Number(gc), row: Number(gr) },

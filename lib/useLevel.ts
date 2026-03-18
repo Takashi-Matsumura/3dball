@@ -13,6 +13,7 @@ import {
   checkProgramResult,
   isGoalPassthrough,
   buildLevelNtagParams,
+  resolveBranchDir,
 } from "@/lib/levels";
 
 export interface LevelState {
@@ -29,6 +30,7 @@ export interface LevelState {
   challenge: number | null;
   moves: number;
   bursting: boolean;
+  branchUsed: boolean;
   gridSize: number;
 
   // Actions
@@ -42,13 +44,14 @@ export interface LevelState {
   /** Count a move (call when gridPos changes) */
   countMove: (pos: GridPos) => void;
   /** Check program run result */
-  checkRunResult: (finalPos: GridPos, passedGoal: boolean) => "success" | "burst" | "none";
+  checkRunResult: (finalPos: GridPos, passedGoal: boolean, runBranchUsed?: boolean) => "success" | "burst" | "none";
   /** Check if intermediate step passes goal */
   isPassthrough: (pos: GridPos, stepIndex: number, totalSteps: number) => boolean;
   /** Call after burst animation completes in free-move mode */
   onBurstReset: () => GridPos;
   setCleared: (v: boolean) => void;
   setBursting: (v: boolean) => void;
+  setBranchUsed: (v: boolean) => void;
   /** Build NTAG params for this level */
   getNtagParams: () => Record<string, string>;
   /** Check if pos is on a branch cell and return branch direction based on arrival direction */
@@ -67,6 +70,7 @@ export function useLevel(): LevelState {
   const [challenge, setChallenge] = useState<number | null>(null);
   const [moves, setMoves] = useState(0);
   const [bursting, setBursting] = useState(false);
+  const [branchUsed, setBranchUsed] = useState(false);
 
   const movesRef = useRef(0);
   const prevPosRef = useRef<GridPos>({ col: 0, row: 0 });
@@ -88,6 +92,7 @@ export function useLevel(): LevelState {
     setCleared(false);
     setChallenge(null);
     setMoves(0);
+    setBranchUsed(false);
     movesRef.current = 0;
     prevPosRef.current = s;
     return s;
@@ -102,6 +107,7 @@ export function useLevel(): LevelState {
     setCleared(false);
     setChallenge(null);
     setBursting(false);
+    setBranchUsed(false);
     return gridCenter(3);
   }, []);
 
@@ -116,6 +122,7 @@ export function useLevel(): LevelState {
     setCleared(false);
     setChallenge(null);
     setMoves(0);
+    setBranchUsed(false);
     movesRef.current = 0;
     prevPosRef.current = s;
     return s;
@@ -126,6 +133,7 @@ export function useLevel(): LevelState {
     const count = generateChallengeCount(start, goal, challenge, config.gridSize, obstacles);
     setChallenge(count);
     setMoves(0);
+    setBranchUsed(false);
     movesRef.current = 0;
     setCleared(false);
     lastMoveDirRef.current = null;
@@ -136,6 +144,7 @@ export function useLevel(): LevelState {
   const resetForRun = useCallback(() => {
     setCleared(false);
     setMoves(0);
+    setBranchUsed(false);
     movesRef.current = 0;
     prevPosRef.current = start;
     return { startPos: start };
@@ -160,12 +169,12 @@ export function useLevel(): LevelState {
 
   const onFreeMove = useCallback((pos: GridPos, isAnimating: boolean): "success" | "burst" | null => {
     if (!config || cleared || bursting || isAnimating) return null;
-    return checkMoveResult(config, pos, goal, movesRef.current, challenge);
-  }, [config, goal, cleared, bursting, challenge]);
+    return checkMoveResult(config, pos, goal, movesRef.current, challenge, branchUsed);
+  }, [config, goal, cleared, bursting, challenge, branchUsed]);
 
-  const checkRunResult = useCallback((finalPos: GridPos, passedGoal: boolean): "success" | "burst" | "none" => {
+  const checkRunResult = useCallback((finalPos: GridPos, passedGoal: boolean, runBranchUsed: boolean = false): "success" | "burst" | "none" => {
     if (!config) return "none";
-    if (checkProgramResult(config, finalPos, goal, passedGoal)) return "success";
+    if (checkProgramResult(config, finalPos, goal, passedGoal, runBranchUsed)) return "success";
     return "burst";
   }, [config, goal]);
 
@@ -177,6 +186,7 @@ export function useLevel(): LevelState {
   const onBurstReset = useCallback((): GridPos => {
     setBursting(false);
     setMoves(0);
+    setBranchUsed(false);
     movesRef.current = 0;
     lastMoveDirRef.current = null;
     prevPosRef.current = start;
@@ -184,12 +194,11 @@ export function useLevel(): LevelState {
   }, [start]);
 
   const checkBranch = useCallback((pos: GridPos): { isBranch: boolean; branchDir: string | null } => {
-    const cell = branchCells.find((c) => c.col === pos.col && c.row === pos.row);
     const dir = lastMoveDirRef.current;
-    if (!cell || !dir) return { isBranch: false, branchDir: null };
-    const isHorizontal = dir === "LEFT" || dir === "RIGHT";
-    const branchDir = isHorizontal ? cell.horizontalBranch : cell.verticalBranch;
-    return { isBranch: true, branchDir };
+    if (!dir) return { isBranch: false, branchDir: null };
+    const result = resolveBranchDir(pos, dir, branchCells);
+    if (!result) return { isBranch: false, branchDir: null };
+    return { isBranch: true, branchDir: result.branchDir };
   }, [branchCells]);
 
   const getNtagParams = useCallback((): Record<string, string> => {
@@ -210,6 +219,7 @@ export function useLevel(): LevelState {
     challenge,
     moves,
     bursting,
+    branchUsed,
     gridSize,
     activate,
     deactivate,
@@ -223,6 +233,7 @@ export function useLevel(): LevelState {
     onBurstReset,
     setCleared,
     setBursting,
+    setBranchUsed,
     getNtagParams,
     checkBranch,
   };

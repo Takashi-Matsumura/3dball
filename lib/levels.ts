@@ -1,4 +1,4 @@
-import { generateRandomPath, moveGrid } from "@/lib/ball-shared";
+import { generateRandomPath, moveGrid, isHorizontalDir } from "@/lib/ball-shared";
 
 export interface LevelConfig {
   id: string;
@@ -25,7 +25,7 @@ export interface BranchCell {
 export const LEVELS: Record<string, LevelConfig> = {
   lv1: { id: "lv1", gridSize: 3, minDistance: 2, hasChallenge: true, themeKey: "lv1Theme", challengeThemeKey: "lv1ChallengeTheme", labelKey: "lv1" },
   lv2: { id: "lv2", gridSize: 5, minDistance: 4, hasChallenge: true, obstacleCount: { min: 2, max: 4 }, themeKey: "lv2Theme", challengeThemeKey: "lv2ChallengeTheme", labelKey: "lv2" },
-  lv3: { id: "lv3", gridSize: 5, minDistance: 4, hasChallenge: true, obstacleCount: { min: 1, max: 3 }, branchCount: { min: 1, max: 2 }, themeKey: "lv3Theme", challengeThemeKey: "lv3ChallengeTheme", labelKey: "lv3" },
+  lv3: { id: "lv3", gridSize: 5, minDistance: 4, hasChallenge: false, branchCount: { min: 1, max: 2 }, themeKey: "lv3Theme", challengeThemeKey: "lv3ChallengeTheme", labelKey: "lv3" },
 };
 
 export type GridPos = { col: number; row: number };
@@ -113,6 +113,9 @@ export function generateBranchCells(
   used.add(`${start.col},${start.row}`);
   used.add(`${goal.col},${goal.row}`);
   for (const o of obstacles) used.add(`${o.col},${o.row}`);
+  // Exclude corners to reduce deadlock risk
+  const corners = [`0,0`, `0,${gridSize - 1}`, `${gridSize - 1},0`, `${gridSize - 1},${gridSize - 1}`];
+  for (const c of corners) used.add(c);
 
   const cells: BranchCell[] = [];
   for (let i = 0; i < count; i++) {
@@ -190,10 +193,12 @@ export function checkMoveResult(
   goal: GridPos,
   moves: number,
   challenge: number | null,
+  branchUsed: boolean = false,
 ): "success" | "burst" | null {
   const onGoal = pos.col === goal.col && pos.row === goal.row;
   if (onGoal) {
     if (challenge !== null && moves !== challenge) return "burst";
+    if (config.branchCount && !branchUsed) return "burst";
     return "success";
   }
   if (challenge !== null && moves > challenge) return "burst";
@@ -206,8 +211,12 @@ export function checkProgramResult(
   finalPos: GridPos,
   goal: GridPos,
   passedGoal: boolean,
+  branchUsed: boolean = false,
 ): boolean {
-  return !passedGoal && finalPos.col === goal.col && finalPos.row === goal.row;
+  if (passedGoal) return false;
+  if (finalPos.col !== goal.col || finalPos.row !== goal.row) return false;
+  if (config.branchCount && !branchUsed) return false;
+  return true;
 }
 
 /** Check if an intermediate step passes through goal */
@@ -253,6 +262,19 @@ export function decodeBranchCells(encoded: string): BranchCell[] {
     });
   }
   return cells;
+}
+
+/** Resolve branch direction for a position given arrival direction and branch cells.
+ *  Returns the resolved branch direction and the matching cell, or null if not on a branch cell. */
+export function resolveBranchDir(
+  pos: GridPos,
+  arrivalDir: string,
+  branchCells: BranchCell[],
+): { branchDir: string; cell: BranchCell } | null {
+  const cell = branchCells.find((c) => c.col === pos.col && c.row === pos.row);
+  if (!cell) return null;
+  const branchDir = isHorizontalDir(arrivalDir) ? cell.horizontalBranch : cell.verticalBranch;
+  return { branchDir, cell };
 }
 
 /** Build NTAG URL params for a level */

@@ -1,15 +1,16 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
-import { moveGrid, expandProgramWithMap } from "@/lib/ball-shared";
-import { GridPos } from "@/lib/levels";
-import { playMove, playJump } from "@/lib/sounds";
+import { moveGrid, expandProgramWithMap, isHorizontalDir } from "@/lib/ball-shared";
+import { GridPos, BranchCell, resolveBranchDir } from "@/lib/levels";
+import { playMove, playJump, playBranch, playBump } from "@/lib/sounds";
 
 export interface RunConfig {
   steps: string[];
   startPos: GridPos;
   gridSize: number;
   obstacles: GridPos[];
+  branchCells?: BranchCell[];
   /** Called on intermediate steps to check if goal was passed through */
   isPassthrough?: (pos: GridPos, stepIndex: number, totalSteps: number) => boolean;
 }
@@ -17,6 +18,8 @@ export interface RunConfig {
 export interface RunResult {
   finalPos: GridPos;
   passedGoal: boolean;
+  burstFromBranch?: boolean;
+  branchUsed?: boolean;
 }
 
 export function useProgramRunner() {
@@ -44,9 +47,99 @@ export function useProgramRunner() {
     }
   }, []);
 
+  // --- Animation primitives ---
+
+  /** Play jump animation and wait for completion */
+  const waitJump = async (sound: () => void = playJump) => {
+    setJumping(true);
+    sound();
+    await new Promise<void>((resolve) => { jumpDoneResolveRef.current = resolve; });
+  };
+
+  /** Move ball to a position with animation and wait for completion */
+  const waitMove = async (pos: GridPos) => {
+    playMove();
+    setIsAnimating(true);
+    setGridPos(pos);
+    await new Promise<void>((resolve) => { animDoneResolveRef.current = resolve; });
+  };
+
+  // --- Execution helpers ---
+
+  /** Execute a single direction move with animation. Returns new position. */
+  const execMove = async (
+    currentPos: GridPos, direction: string, gridSize: number,
+    obstacles: GridPos[], isPassthrough: RunConfig["isPassthrough"],
+    stepIdx: number, totalSteps: number,
+    passedGoalRef: { value: boolean },
+  ): Promise<GridPos> => {
+    if (direction === "JUMP") {
+      await waitJump();
+      return currentPos;
+    }
+    const next = moveGrid(currentPos, direction, gridSize, obstacles);
+    if (!next) { playBump(); return currentPos; }
+    if (isPassthrough?.(next, stepIdx, totalSteps)) passedGoalRef.value = true;
+    await waitMove(next);
+    return next;
+  };
+
+  /** Execute a sequence of steps (used for BRANCH block bodies). Returns final position. */
+  const execBody = async (
+    body: string[], startPos: GridPos, gridSize: number,
+    obstacles: GridPos[], branchCells: BranchCell[],
+    isPassthrough: RunConfig["isPassthrough"],
+    progIdx: number, totalSteps: number,
+    passedGoalRef: { value: boolean }, branchUsedRef: { value: boolean },
+  ): Promise<{ pos: GridPos; burstFromBranch?: boolean }> => {
+    let pos = startPos;
+    for (const step of body) {
+      if (step === "PIPE" || step === "SLASH" || step === "BRANCH") continue;
+      pos = await execMove(pos, step, gridSize, obstacles, isPassthrough, progIdx, totalSteps, passedGoalRef);
+      await new Promise((r) => setTimeout(r, 200));
+      if (step !== "JUMP") {
+        const result = await autoBranch(pos, step, gridSize, obstacles, branchCells, isPassthrough, progIdx, totalSteps, passedGoalRef, branchUsedRef);
+        if (result.burstFromBranch) return result;
+        pos = result.pos;
+      }
+    }
+    return { pos };
+  };
+
+  /** Auto-branch resolution loop for "?" cells (used when no BRANCH block follows) */
+  const autoBranch = async (
+    currentPos: GridPos, lastDir: string, gridSize: number,
+    obstacles: GridPos[], branchCells: BranchCell[],
+    isPassthrough: RunConfig["isPassthrough"],
+    stepIdx: number, totalSteps: number,
+    passedGoalRef: { value: boolean }, branchUsedRef: { value: boolean },
+  ): Promise<{ pos: GridPos; burstFromBranch?: boolean }> => {
+    let pos = currentPos;
+    let dir = lastDir;
+    let chain = 0;
+    while (branchCells.length > 0) {
+      const resolved = resolveBranchDir(pos, dir, branchCells);
+      if (!resolved) break;
+      const branchDir = resolved.branchDir;
+      chain++;
+      branchUsedRef.value = true;
+      if (chain >= 7) return { pos, burstFromBranch: true };
+      await waitJump(playBranch);
+      await new Promise((r) => setTimeout(r, 300));
+      const next = moveGrid(pos, branchDir, gridSize, obstacles);
+      if (!next) { playBump(); break; }
+      if (isPassthrough?.(next, stepIdx, totalSteps)) passedGoalRef.value = true;
+      pos = next;
+      dir = branchDir;
+      await waitMove(next);
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return { pos };
+  };
+
   /** Run program steps with animations. Returns final position and passedGoal flag. */
   const runSteps = useCallback(async (config: RunConfig): Promise<RunResult> => {
-    const { steps, startPos, gridSize, obstacles, isPassthrough } = config;
+    const { steps, startPos, gridSize, obstacles, branchCells = [], isPassthrough } = config;
 
     setGridPos(startPos);
     setIsAnimating(false);
@@ -56,45 +149,112 @@ export function useProgramRunner() {
     const { expanded, indexMap } = expandProgramWithMap(steps);
 
     let currentPos = { ...startPos };
-    let passedGoal = false;
+    const passedGoalRef = { value: false };
+    const branchUsedRef = { value: false };
+
     for (let i = 0; i < expanded.length; i++) {
+      const token = expanded[i];
+
+      // Skip structural P-block tokens
+      if (token === "PIPE" || token === "SLASH") continue;
+
       setProgIndex(indexMap[i]);
-      const direction = expanded[i];
-      if (direction === "JUMP") {
-        setJumping(true);
-        playJump();
-        await new Promise<void>((resolve) => {
-          jumpDoneResolveRef.current = resolve;
-        });
-      } else {
-        const next = moveGrid(currentPos, direction, gridSize, obstacles);
-        if (next) {
-          if (isPassthrough?.(next, i, expanded.length)) {
-            passedGoal = true;
+
+      if (token === "BRANCH") {
+        // P-block: find boundaries
+        let pipeIdx = i + 1;
+        while (pipeIdx < expanded.length && expanded[pipeIdx] !== "PIPE") pipeIdx++;
+        let slashIdx = pipeIdx + 1;
+        while (slashIdx < expanded.length && expanded[slashIdx] !== "SLASH") slashIdx++;
+        const ifBody = expanded.slice(i + 1, pipeIdx);
+        const elseBody = expanded.slice(pipeIdx + 1, slashIdx);
+
+        // Check if on a "?" cell
+        // Find the direction that moved us here (the step before P in the expanded array)
+        let arrivalDir = "";
+        for (let k = i - 1; k >= 0; k--) {
+          if (["UP", "DOWN", "LEFT", "RIGHT"].includes(expanded[k])) { arrivalDir = expanded[k]; break; }
+        }
+        const branchResolved = arrivalDir ? resolveBranchDir(currentPos, arrivalDir, branchCells) : null;
+        if (branchResolved) {
+          branchUsedRef.value = true;
+          const branchDir = branchResolved.branchDir;
+          const isH = isHorizontalDir(arrivalDir);
+          // if-block = UP (horizontal arrival) or RIGHT (vertical arrival)
+          const isIfBranch = isH ? branchDir === "UP" : branchDir === "RIGHT";
+          const chosenBody = isIfBranch ? ifBody : elseBody;
+
+          // Jump + move in branch direction
+          await waitJump(playBranch);
+          await new Promise((r) => setTimeout(r, 300));
+          const branchNext = moveGrid(currentPos, branchDir, gridSize, obstacles);
+          if (branchNext) {
+            currentPos = branchNext;
+            await waitMove(branchNext);
+            await new Promise((r) => setTimeout(r, 200));
+          } else {
+            playBump();
           }
+
+          // Execute chosen body from the new position
+          // Don't pass isPassthrough — goal reached during BRANCH body
+          // may be the final destination, not an intermediate passthrough
+          const result = await execBody(
+            chosenBody, currentPos, gridSize, obstacles, branchCells,
+            undefined, indexMap[i], expanded.length,
+            passedGoalRef, branchUsedRef,
+          );
+          if (result.burstFromBranch) {
+            return { finalPos: result.pos, passedGoal: passedGoalRef.value, burstFromBranch: true, branchUsed: branchUsedRef.value };
+          }
+          currentPos = result.pos;
+        }
+        // Skip to after SLASH
+        i = slashIdx;
+        continue;
+      }
+
+      if (token === "JUMP") {
+        await waitJump();
+      } else {
+        const next = moveGrid(currentPos, token, gridSize, obstacles);
+        if (next) {
+          if (isPassthrough?.(next, i, expanded.length)) passedGoalRef.value = true;
           currentPos = next;
-          playMove();
-          setIsAnimating(true);
-          setGridPos(next);
-          await new Promise<void>((resolve) => {
-            animDoneResolveRef.current = resolve;
-          });
+          await waitMove(next);
+
+          // Auto-branch ONLY if no BRANCH token ahead for the same direction group
+          // e.g. "LEFT LEFT BRANCH" → suppress auto-branch for both LEFTs
+          let hasBranchAhead = false;
+          for (let k = i + 1; k < expanded.length; k++) {
+            if (expanded[k] === "BRANCH") { hasBranchAhead = true; break; }
+            if (expanded[k] !== token) break;
+          }
+          if (hasBranchAhead) {
+            // BRANCH block follows — skip auto-branch, let BRANCH handler deal with it
+          } else {
+            const result = await autoBranch(
+              currentPos, token, gridSize, obstacles, branchCells,
+              isPassthrough, i, expanded.length,
+              passedGoalRef, branchUsedRef,
+            );
+            if (result.burstFromBranch) {
+              return { finalPos: result.pos, passedGoal: passedGoalRef.value, burstFromBranch: true, branchUsed: branchUsedRef.value };
+            }
+            currentPos = result.pos;
+          }
         }
       }
       await new Promise((r) => setTimeout(r, 200));
     }
     setProgIndex(-1);
 
-    return { finalPos: currentPos, passedGoal };
+    return { finalPos: currentPos, passedGoal: passedGoalRef.value, branchUsed: branchUsedRef.value };
   }, []);
 
   /** Trigger a jump and wait for it to complete */
   const triggerJump = useCallback(async () => {
-    setJumping(true);
-    playJump();
-    await new Promise<void>((resolve) => {
-      jumpDoneResolveRef.current = resolve;
-    });
+    await waitJump();
   }, []);
 
   /** Reset highlight index (e.g. when closing programming panel) */

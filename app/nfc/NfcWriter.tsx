@@ -6,7 +6,7 @@ import { useI18n } from "@/lib/i18n";
 
 interface ActionDef {
   id: string;
-  labelKey: "dirUp" | "dirDown" | "dirLeft" | "dirRight" | "dirJump" | "dirX2" | "dirX3";
+  labelKey: "dirUp" | "dirDown" | "dirLeft" | "dirRight" | "dirJump" | "dirX2" | "dirX3" | "dirBranch";
   icon: string;
   bgColor: string;
   borderColor: string;
@@ -14,13 +14,14 @@ interface ActionDef {
 }
 
 const ACTIONS: ActionDef[] = [
-  { id: "UP",    labelKey: "dirUp",    icon: "⬆",  bgColor: "bg-blue-100",   borderColor: "border-blue-400",   textColor: "text-blue-700" },
-  { id: "DOWN",  labelKey: "dirDown",  icon: "⬇",  bgColor: "bg-orange-100", borderColor: "border-orange-400", textColor: "text-orange-700" },
-  { id: "LEFT",  labelKey: "dirLeft",  icon: "⬅",  bgColor: "bg-purple-100", borderColor: "border-purple-400", textColor: "text-purple-700" },
-  { id: "RIGHT", labelKey: "dirRight", icon: "➡",  bgColor: "bg-green-100",  borderColor: "border-green-400",  textColor: "text-green-700" },
-  { id: "JUMP",  labelKey: "dirJump",  icon: "⤴",  bgColor: "bg-yellow-100", borderColor: "border-yellow-400", textColor: "text-yellow-700" },
-  { id: "X2",    labelKey: "dirX2",    icon: "×2", bgColor: "bg-pink-100",   borderColor: "border-pink-400",   textColor: "text-pink-700" },
-  { id: "X3",    labelKey: "dirX3",    icon: "×3", bgColor: "bg-red-100",    borderColor: "border-red-400",    textColor: "text-red-700" },
+  { id: "UP",     labelKey: "dirUp",     icon: "⬆",  bgColor: "bg-blue-100",   borderColor: "border-blue-400",   textColor: "text-blue-700" },
+  { id: "DOWN",   labelKey: "dirDown",   icon: "⬇",  bgColor: "bg-orange-100", borderColor: "border-orange-400", textColor: "text-orange-700" },
+  { id: "LEFT",   labelKey: "dirLeft",   icon: "⬅",  bgColor: "bg-purple-100", borderColor: "border-purple-400", textColor: "text-purple-700" },
+  { id: "RIGHT",  labelKey: "dirRight",  icon: "➡",  bgColor: "bg-green-100",  borderColor: "border-green-400",  textColor: "text-green-700" },
+  { id: "JUMP",   labelKey: "dirJump",   icon: "⤴",  bgColor: "bg-yellow-100", borderColor: "border-yellow-400", textColor: "text-yellow-700" },
+  { id: "X2",     labelKey: "dirX2",     icon: "×2", bgColor: "bg-pink-100",   borderColor: "border-pink-400",   textColor: "text-pink-700" },
+  { id: "X3",     labelKey: "dirX3",     icon: "×3", bgColor: "bg-red-100",    borderColor: "border-red-400",    textColor: "text-red-700" },
+  { id: "BRANCH", labelKey: "dirBranch", icon: "❓", bgColor: "bg-violet-100", borderColor: "border-violet-400", textColor: "text-violet-700" },
 ];
 
 interface RegisteredCard {

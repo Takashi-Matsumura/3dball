@@ -6,8 +6,8 @@ import {
   PatternConfig,
   NFC_ICONS,
 } from "@/lib/ball-shared";
-import { GridPos } from "@/lib/levels";
-import { SceneLighting, CameraController, Board, Ground, Sphere, CellMarker, TextSprite, ObstacleMarker } from "@/app/components/Scene";
+import { GridPos, BranchCell } from "@/lib/levels";
+import { SceneLighting, CameraController, Board, Ground, Sphere, CellMarker, TextSprite, ObstacleMarker, BranchMarker } from "@/app/components/Scene";
 import { playSuccess } from "@/lib/sounds";
 import { useProgramRunner } from "@/lib/useProgramRunner";
 
@@ -26,10 +26,11 @@ interface ReplaySceneProps {
   createdAt?: number;
   gridSize?: number;
   obstacles?: GridPos[];
+  branchCells?: BranchCell[];
   levelInfo?: LevelInfo;
 }
 
-export default function ReplayScene({ steps, color1, color2, scale, pattern, createdAt, gridSize: gridSizeProp, obstacles = [], levelInfo }: ReplaySceneProps) {
+export default function ReplayScene({ steps, color1, color2, scale, pattern, createdAt, gridSize: gridSizeProp, obstacles = [], branchCells = [], levelInfo }: ReplaySceneProps) {
   const gridSize = gridSizeProp ?? 3;
   const startPos = levelInfo ? levelInfo.start : { col: 1, row: 1 };
   const runner = useProgramRunner();
@@ -67,6 +68,7 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
       startPos,
       gridSize,
       obstacles,
+      branchCells,
       isPassthrough,
     });
 
@@ -76,7 +78,7 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
       setLevelCleared(true);
     }
     playSuccess();
-  }, [steps, startPos, levelInfo, gridSize, obstacles, runner]);
+  }, [steps, startPos, levelInfo, gridSize, obstacles, branchCells, runner]);
 
   // Auto-play on mount
   useEffect(() => {
@@ -93,20 +95,26 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
           ref={stepsRef}
           className="flex items-center justify-center gap-1 px-3 py-2 overflow-x-auto"
         >
-          {steps.map((dir, i) => (
-            <div
-              key={i}
-              className={`flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-lg text-lg font-medium transition ${
-                progIndex === i
-                  ? "bg-yellow-300 scale-110"
-                  : finished
-                    ? "bg-white/20 text-white/60"
-                    : "bg-white/10 text-white/40"
-              }`}
-            >
-              {NFC_ICONS[dir]}
-            </div>
-          ))}
+          {steps.map((dir, i) => {
+            // Skip structural P-block tokens
+            if (dir === "PIPE" || dir === "SLASH") return null;
+            const icon = NFC_ICONS[dir];
+            if (!icon) return null;
+            return (
+              <div
+                key={i}
+                className={`flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-lg text-lg font-medium transition ${
+                  progIndex === i
+                    ? "bg-yellow-300 scale-110"
+                    : finished
+                      ? "bg-white/20 text-white/60"
+                      : "bg-white/10 text-white/40"
+                }`}
+              >
+                {icon}
+              </div>
+            );
+          })}
         </div>
 
         {/* Step count + level info */}
@@ -175,7 +183,10 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
             <CellMarker col={levelInfo.goal.col} row={levelInfo.goal.row} color="#ffaa00" gridSize={gridSize} />
             <TextSprite col={levelInfo.goal.col} row={levelInfo.goal.row} text="GOAL" color="#ffaa00" gridSize={gridSize} />
             {obstacles.map((ob, i) => (
-              <ObstacleMarker key={i} col={ob.col} row={ob.row} gridSize={gridSize} />
+              <ObstacleMarker key={`ob-${i}`} col={ob.col} row={ob.row} gridSize={gridSize} />
+            ))}
+            {branchCells.map((bc, i) => (
+              <BranchMarker key={`br-${i}`} branchCell={bc} gridSize={gridSize} />
             ))}
           </>
         )}
