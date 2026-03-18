@@ -596,20 +596,28 @@ export default function Ball() {
                       </div>
 
                       {/* P-block if/else UI */}
-                      {group.pBlock && (
+                      {group.pBlock && (() => {
+                        const ifActive = group.pBlock!.ifSteps.some((sub) => sub.rawIndices.includes(progIndex));
+                        const elseActive = group.pBlock!.elseSteps.some((sub) => sub.rawIndices.includes(progIndex));
+                        return (
                         <div className="ml-4 mt-1 mb-1 border-l-2 border-purple-300 pl-2 flex flex-col gap-1">
                           {/* if block */}
                           <div
                             onClick={() => !progRunning && setPBlockEditing("if")}
                             className={`rounded px-2 py-1 text-xs font-bold ${
-                              pBlockEditing === "if" ? "bg-purple-100 ring-2 ring-purple-400" : "bg-gray-50 hover:bg-purple-50"
+                              ifActive ? "bg-yellow-200 ring-2 ring-yellow-400"
+                              : pBlockEditing === "if" ? "bg-purple-100 ring-2 ring-purple-400" : "bg-gray-50 hover:bg-purple-50"
                             } ${!progRunning ? "cursor-pointer" : ""}`}
                           >
-                            <span className="text-purple-600">{t("ifBlock")} ({NFC_ICONS[group.pBlock.ifLabel]} {group.pBlock.ifLabel})</span>
+                            <span className="text-purple-600">{t("ifBlock")} ({NFC_ICONS[group.pBlock!.ifLabel]} {group.pBlock!.ifLabel})</span>
                           </div>
-                          {group.pBlock.ifSteps.length > 0 ? (
-                            group.pBlock.ifSteps.map((sub, si) => (
-                              <div key={`if-${si}`} className="flex items-center gap-2 rounded px-3 py-1 text-xs bg-purple-50 ml-2">
+                          {group.pBlock!.ifSteps.length > 0 ? (
+                            group.pBlock!.ifSteps.map((sub, si) => {
+                              const isSubHighlighted = sub.rawIndices.includes(progIndex);
+                              return (
+                              <div key={`if-${si}`} className={`flex items-center gap-2 rounded px-3 py-1 text-xs ml-2 transition ${
+                                isSubHighlighted ? "bg-yellow-300 scale-105" : "bg-purple-50"
+                              }`}>
                                 <span className="text-lg">{NFC_ICONS[sub.dir]}</span>
                                 <span className="text-gray-600">{sub.dir}</span>
                                 {sub.repeat > 1 && <span className="font-bold text-pink-600">×{sub.repeat}</span>}
@@ -629,7 +637,8 @@ export default function Ball() {
                                   </button>
                                 )}
                               </div>
-                            ))
+                              );
+                            })
                           ) : (
                             <div className="text-[10px] text-gray-400 ml-2 py-1">
                               {pBlockEditing === "if" ? "← カードをスキャン" : "—"}
@@ -640,14 +649,19 @@ export default function Ball() {
                           <div
                             onClick={() => !progRunning && setPBlockEditing("else")}
                             className={`rounded px-2 py-1 text-xs font-bold ${
-                              pBlockEditing === "else" ? "bg-purple-100 ring-2 ring-purple-400" : "bg-gray-50 hover:bg-purple-50"
+                              elseActive ? "bg-yellow-200 ring-2 ring-yellow-400"
+                              : pBlockEditing === "else" ? "bg-purple-100 ring-2 ring-purple-400" : "bg-gray-50 hover:bg-purple-50"
                             } ${!progRunning ? "cursor-pointer" : ""}`}
                           >
-                            <span className="text-purple-600">{t("elseBlock")} ({NFC_ICONS[group.pBlock.elseLabel]} {group.pBlock.elseLabel})</span>
+                            <span className="text-purple-600">{t("elseBlock")} ({NFC_ICONS[group.pBlock!.elseLabel]} {group.pBlock!.elseLabel})</span>
                           </div>
-                          {group.pBlock.elseSteps.length > 0 ? (
-                            group.pBlock.elseSteps.map((sub, si) => (
-                              <div key={`else-${si}`} className="flex items-center gap-2 rounded px-3 py-1 text-xs bg-purple-50 ml-2">
+                          {group.pBlock!.elseSteps.length > 0 ? (
+                            group.pBlock!.elseSteps.map((sub, si) => {
+                              const isSubHighlighted = sub.rawIndices.includes(progIndex);
+                              return (
+                              <div key={`else-${si}`} className={`flex items-center gap-2 rounded px-3 py-1 text-xs ml-2 transition ${
+                                isSubHighlighted ? "bg-yellow-300 scale-105" : "bg-purple-50"
+                              }`}>
                                 <span className="text-lg">{NFC_ICONS[sub.dir]}</span>
                                 <span className="text-gray-600">{sub.dir}</span>
                                 {sub.repeat > 1 && <span className="font-bold text-pink-600">×{sub.repeat}</span>}
@@ -667,7 +681,8 @@ export default function Ball() {
                                   </button>
                                 )}
                               </div>
-                            ))
+                              );
+                            })
                           ) : (
                             <div className="text-[10px] text-gray-400 ml-2 py-1">
                               {pBlockEditing === "else" ? "← カードをスキャン" : "—"}
@@ -713,7 +728,8 @@ export default function Ball() {
                             </div>
                           )}
                         </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   );
                 })

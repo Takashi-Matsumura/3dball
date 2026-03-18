@@ -291,22 +291,25 @@ export function expandProgramWithMap(steps: string[]): { expanded: string[]; ind
       const { ifBody: ifRaw, elseBody: elseRaw, endIndex: j } = splitPBlock(steps, i);
       const ifExpanded = expandProgramWithMap(ifRaw);
       const elseExpanded = expandProgramWithMap(elseRaw);
-      // Push expanded if-body
+      // Push expanded if-body (map to original source indices)
+      const ifBaseIdx = i + 1;
       for (let k = 0; k < ifExpanded.expanded.length; k++) {
         expanded.push(ifExpanded.expanded[k]);
-        indexMap.push(i); // map to the P token index
+        indexMap.push(ifBaseIdx + ifExpanded.indexMap[k]);
       }
-      // Push PIPE
+      // Push PIPE (at its original position in source)
+      const pipeSourceIdx = i + 1 + ifRaw.length;
       expanded.push("PIPE");
-      indexMap.push(i);
-      // Push expanded else-body
+      indexMap.push(pipeSourceIdx);
+      // Push expanded else-body (map to original source indices)
+      const elseBaseIdx = pipeSourceIdx + 1;
       for (let k = 0; k < elseExpanded.expanded.length; k++) {
         expanded.push(elseExpanded.expanded[k]);
-        indexMap.push(i);
+        indexMap.push(elseBaseIdx + elseExpanded.indexMap[k]);
       }
       // Push SLASH
       expanded.push("SLASH");
-      indexMap.push(i);
+      indexMap.push(j);
       // Skip past the block in the source
       i = j; // the for loop will i++ past SLASH
     } else if (s === "PIPE" || s === "SLASH") {
@@ -348,7 +351,7 @@ function pBlockLabels(dir: string): { ifLabel: string; elseLabel: string } {
     : { ifLabel: "RIGHT", elseLabel: "LEFT" };
 }
 
-export function groupProgramForDisplay(program: string[]): DisplayStep[] {
+export function groupProgramForDisplay(program: string[], baseIndex = 0): DisplayStep[] {
   const groups: DisplayStep[] = [];
   for (let i = 0; i < program.length; i++) {
     const s = program[i];
@@ -357,26 +360,28 @@ export function groupProgramForDisplay(program: string[]): DisplayStep[] {
       const last = groups[groups.length - 1];
       const n = s === "X2" ? 2 : 3;
       last.repeat = last.repeat === 1 ? n : last.repeat + n;
-      last.rawIndices.push(i);
+      last.rawIndices.push(baseIndex + i);
     } else if (s === "BRANCH") {
       if (groups.length === 0) continue;
       const last = groups[groups.length - 1];
-      last.rawIndices.push(i);
+      last.rawIndices.push(baseIndex + i);
       // Find matching SLASH and split into if/else bodies
       const { ifBody: ifRaw, elseBody: elseRaw, endIndex: j } = splitPBlock(program, i);
       const labels = pBlockLabels(last.dir);
+      const ifBaseIdx = baseIndex + i + 1;
+      const elseBaseIdx = ifBaseIdx + ifRaw.length + 1; // +1 for PIPE
       last.pBlock = {
         ...labels,
-        ifSteps: groupProgramForDisplay(ifRaw),
-        elseSteps: groupProgramForDisplay(elseRaw),
+        ifSteps: groupProgramForDisplay(ifRaw, ifBaseIdx),
+        elseSteps: groupProgramForDisplay(elseRaw, elseBaseIdx),
       };
       // Collect all raw indices in the block
-      for (let k = i + 1; k <= j; k++) last.rawIndices.push(k);
+      for (let k = i + 1; k <= j; k++) last.rawIndices.push(baseIndex + k);
       i = j; // skip past SLASH
     } else if (s === "PIPE" || s === "SLASH") {
       // structural tokens — skip at top level
     } else {
-      groups.push({ dir: s, repeat: 1, rawIndices: [i] });
+      groups.push({ dir: s, repeat: 1, rawIndices: [baseIndex + i] });
     }
   }
   return groups;

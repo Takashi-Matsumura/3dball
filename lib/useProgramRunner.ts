@@ -91,10 +91,13 @@ export function useProgramRunner() {
     isPassthrough: RunConfig["isPassthrough"],
     progIdx: number, totalSteps: number,
     passedGoalRef: { value: boolean }, branchUsedRef: { value: boolean },
+    bodyIndexMap?: number[],
   ): Promise<{ pos: GridPos; burstFromBranch?: boolean }> => {
     let pos = startPos;
-    for (const step of body) {
+    for (let si = 0; si < body.length; si++) {
+      const step = body[si];
       if (step === "PIPE" || step === "SLASH" || step === "BRANCH") continue;
+      if (bodyIndexMap) setProgIndex(bodyIndexMap[si]);
       pos = await execMove(pos, step, gridSize, obstacles, isPassthrough, progIdx, totalSteps, passedGoalRef);
       await new Promise((r) => setTimeout(r, 200));
       if (step !== "JUMP") {
@@ -199,10 +202,13 @@ export function useProgramRunner() {
           // Execute chosen body from the new position
           // Don't pass isPassthrough — goal reached during BRANCH body
           // may be the final destination, not an intermediate passthrough
+          const bodyIndexMap = isIfBranch
+            ? indexMap.slice(i + 1, pipeIdx)
+            : indexMap.slice(pipeIdx + 1, slashIdx);
           const result = await execBody(
             chosenBody, currentPos, gridSize, obstacles, branchCells,
             undefined, indexMap[i], expanded.length,
-            passedGoalRef, branchUsedRef,
+            passedGoalRef, branchUsedRef, bodyIndexMap,
           );
           if (result.burstFromBranch) {
             return { finalPos: result.pos, passedGoal: passedGoalRef.value, burstFromBranch: true, branchUsed: branchUsedRef.value };
