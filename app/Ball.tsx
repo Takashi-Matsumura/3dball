@@ -355,7 +355,7 @@ export default function Ball() {
           resetProgIndex();
           setProgRunning(false);
           setPBlockEditing("none");
-        } else {
+        } else if (nfcConnected) {
           setProgMode(true);
         }
         return;
@@ -479,9 +479,10 @@ export default function Ball() {
         {/* Panel header */}
         {!progMode ? (
           <button
-            onClick={() => setProgMode(true)}
-            className="rounded-lg bg-white/95 p-2 shadow-md backdrop-blur border border-gray-200 transition hover:bg-white text-black/40 hover:text-black/70"
+            onClick={() => nfcConnected && setProgMode(true)}
+            className={`rounded-lg bg-white/95 p-2 shadow-md backdrop-blur border border-gray-200 transition ${nfcConnected ? "hover:bg-white text-black/40 hover:text-black/70" : "text-black/15 cursor-not-allowed"}`}
             title={t("programming")}
+            disabled={!nfcConnected}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
               <polyline points="16 18 22 12 16 6" />
