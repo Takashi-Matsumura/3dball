@@ -153,19 +153,22 @@ export function useLevel(): LevelState {
   const countMove = useCallback((pos: GridPos) => {
     const prev = prevPosRef.current;
     if (prev.col !== pos.col || prev.row !== pos.row) {
-      const next = movesRef.current + 1;
-      movesRef.current = next;
-      setMoves(next);
-      // Track direction from position delta (ref for immediate availability)
+      // Track direction from position delta (always, even after clearing)
       const dc = pos.col - prev.col;
       const dr = pos.row - prev.row;
       if (dc > 0) lastMoveDirRef.current = "RIGHT";
       else if (dc < 0) lastMoveDirRef.current = "LEFT";
       else if (dr > 0) lastMoveDirRef.current = "DOWN";
       else if (dr < 0) lastMoveDirRef.current = "UP";
+      // Only count moves before clearing
+      if (!cleared) {
+        const next = movesRef.current + 1;
+        movesRef.current = next;
+        setMoves(next);
+      }
     }
     prevPosRef.current = pos;
-  }, []);
+  }, [cleared]);
 
   const onFreeMove = useCallback((pos: GridPos, isAnimating: boolean): "success" | "burst" | null => {
     if (!config || cleared || bursting || isAnimating) return null;

@@ -14,11 +14,23 @@ import {
 import { BranchCell } from "@/lib/levels";
 
 export function CameraController({ is2D, gridSize = 3 }: { is2D: boolean; gridSize?: number }) {
-  const { camera, size } = useThree();
+  const { camera, size, gl } = useThree();
   const target = is2D ? CAMERA_2D : CAMERA_3D;
   const currentPos = useRef(new THREE.Vector3(...CAMERA_3D.pos));
   const currentLookAt = useRef(new THREE.Vector3(...CAMERA_3D.lookAt));
   const currentUp = useRef(new THREE.Vector3(...CAMERA_3D.up));
+  const zoomRef = useRef(1);
+
+  useEffect(() => {
+    const canvas = gl.domElement;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 1.1 : 0.9;
+      zoomRef.current = Math.max(0.3, Math.min(3, zoomRef.current * delta));
+    };
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", handleWheel);
+  }, [gl]);
 
   useFrame((_state, delta) => {
     const aspect = size.width / size.height;
@@ -26,6 +38,8 @@ export function CameraController({ is2D, gridSize = 3 }: { is2D: boolean; gridSi
     let scale = aspect < 1 ? 1 / aspect : 1;
     // Scale camera distance for larger grids
     scale *= gridSize / 3;
+    // Apply user zoom
+    scale *= zoomRef.current;
 
     const basePos = new THREE.Vector3(...target.pos);
     const lookAt = new THREE.Vector3(...target.lookAt);

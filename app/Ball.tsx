@@ -83,17 +83,17 @@ export default function Ball() {
 
   // Level: count moves, detect goal/failure, and auto-branch on "?" cells (free-move mode)
   useEffect(() => {
-    if (!level.active || level.cleared || level.bursting) return;
+    if (!level.active || level.bursting) return;
     level.countMove(gridPos);
     if (isAnimating || progMode) return;
 
-    // Check for auto-branch on "?" cell
+    // Check for auto-branch on "?" cell (works even after clearing)
     const { isBranch, branchDir } = level.checkBranch(gridPos);
     if (isBranch && branchDir && !jumping) {
-      level.setBranchUsed(true);
+      if (!level.cleared) level.setBranchUsed(true);
       branchChainRef.current += 1;
-      // Deadlock: 7 consecutive branches → burst
-      if (branchChainRef.current >= 7) {
+      // Deadlock: 7 consecutive branches → burst (only before clearing)
+      if (!level.cleared && branchChainRef.current >= 7) {
         branchChainRef.current = 0;
         level.setBursting(true);
         playBurst();
@@ -119,6 +119,8 @@ export default function Ball() {
     if (!isBranch) {
       branchChainRef.current = 0;
     }
+
+    if (level.cleared) return;
 
     const result = level.onFreeMove(gridPos, isAnimating);
     if (result === "success") {
@@ -1091,6 +1093,10 @@ export default function Ball() {
             <TextSprite col={level.start.col} row={level.start.row} text={t("start")} color="#44cc44" gridSize={level.gridSize} />
             <CellMarker col={level.goal.col} row={level.goal.row} color="#ffaa00" gridSize={level.gridSize} />
             <TextSprite col={level.goal.col} row={level.goal.row} text={t("goal")} color="#ffaa00" gridSize={level.gridSize} />
+          </>
+        )}
+        {level.active && (
+          <>
             {level.obstacles.map((ob, i) => (
               <ObstacleMarker key={`ob-${i}`} col={ob.col} row={ob.row} gridSize={level.gridSize} />
             ))}
