@@ -347,7 +347,7 @@ export default function Ball() {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       // P → toggle programming mode
-      if (e.key === "p" && !e.metaKey && !e.ctrlKey && !progRunning) {
+      if ((e.key === "p" || e.key === "/") && !e.metaKey && !e.ctrlKey && !progRunning) {
         e.preventDefault();
         if (progMode) {
           setProgMode(false);
@@ -361,7 +361,7 @@ export default function Ball() {
         return;
       }
       // S → toggle settings
-      if (e.key === "s" && !e.metaKey && !e.ctrlKey) {
+      if ((e.key === "s" || e.key === "*") && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         setShowSettings((v) => !v);
         return;
@@ -384,15 +384,29 @@ export default function Ball() {
           return;
         }
       }
-      // Escape → exit level mode
-      if (e.key === "Escape" && level.active) {
+      // Escape / - → exit level mode
+      if ((e.key === "Escape" || e.key === "-") && level.active) {
         e.preventDefault();
         const center = level.deactivate();
         setGridPos(center);
         return;
       }
+      // + → cycle level (OFF→Lv1→Lv2→Lv3→OFF)
+      if (e.key === "+" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        const currentIdx = level.levelId ? levelIds.indexOf(level.levelId) : -1;
+        const nextIdx = currentIdx + 1;
+        if (nextIdx >= levelIds.length) {
+          const center = level.deactivate();
+          setGridPos(center);
+        } else {
+          const pos = level.activate(levelIds[nextIdx]);
+          setGridPos(pos);
+        }
+        return;
+      }
       // Tab → generate challenge (hasChallenge) or new map (!hasChallenge)
-      if (e.key === "Tab" && level.active && !level.cleared) {
+      if ((e.key === "Tab" || e.key === "Delete") && level.active && !level.cleared) {
         e.preventDefault();
         if (level.config?.hasChallenge) {
           const pos = level.newChallenge();
@@ -419,8 +433,8 @@ export default function Ball() {
           runProgram();
           return;
         }
-        // Shift+Enter → New
-        if (e.key === "Enter" && e.shiftKey && !progRunning) {
+        // Shift+Enter / Insert → New
+        if ((e.key === "Enter" && e.shiftKey || e.key === "Insert") && !progRunning) {
           e.preventDefault();
           setProgram([]);
           resetProgIndex();
@@ -433,10 +447,16 @@ export default function Ball() {
           }
           return;
         }
+        // Backspace → delete last instruction
+        if (e.key === "Backspace" && !progRunning && program.length > 0 && pBlockEditing === "none") {
+          e.preventDefault();
+          setProgram((prev) => prev.slice(0, -1));
+          return;
+        }
         return;
       }
       if (isAnimating || level.bursting) return;
-      if (e.key === " " || e.code === "Space") {
+      if (e.key === " " || e.code === "Space" || e.key === "Clear") {
         e.preventDefault();
         if (!jumping) {
           setJumping(true);
@@ -464,7 +484,7 @@ export default function Ball() {
         return next;
       });
     },
-    [isAnimating, jumping, progMode, progRunning, program, runProgram, level]
+    [isAnimating, jumping, progMode, progRunning, program, runProgram, level, pBlockEditing]
   );
 
   useEffect(() => {
