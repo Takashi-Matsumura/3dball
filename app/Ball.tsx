@@ -137,7 +137,7 @@ export default function Ball() {
   // Run program step by step
   const burstDoneResolveRef = useRef<(() => void) | null>(null);
 
-  const runProgram = useCallback(async () => {
+  const runProgram = useCallback(async (options?: { reverseBranch?: boolean }) => {
     if (program.length === 0) return;
     setProgRunning(true);
 
@@ -149,6 +149,7 @@ export default function Ball() {
       obstacles: level.obstacles,
       branchCells: level.branchCells,
       isPassthrough: level.active ? level.isPassthrough : undefined,
+      reverseBranch: options?.reverseBranch,
     });
 
     if (burstFromBranch) {
@@ -360,10 +361,16 @@ export default function Ball() {
         }
         return;
       }
-      // S → toggle settings
+      // S / * → toggle settings
       if ((e.key === "s" || e.key === "*") && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         setShowSettings((v) => !v);
+        return;
+      }
+      // D / PageUp(9) → toggle 2D/3D
+      if ((e.key === "d" || e.key === "PageUp") && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setIs2D((v) => !v);
         return;
       }
       // F1..Fn → toggle level mode (mapped to LEVELS order)
@@ -433,8 +440,13 @@ export default function Ball() {
           runProgram();
           return;
         }
-        // Shift+Enter / Insert → New
-        if ((e.key === "Enter" && e.shiftKey || e.key === "Insert") && !progRunning) {
+        // Shift+Enter → Run with reversed branches (hidden mode) / Insert → New
+        if (e.key === "Enter" && e.shiftKey && !progRunning && program.length > 0) {
+          e.preventDefault();
+          runProgram({ reverseBranch: true });
+          return;
+        }
+        if ((e.key === "Enter" && e.shiftKey && program.length === 0 || e.key === "Insert") && !progRunning) {
           e.preventDefault();
           setProgram([]);
           resetProgIndex();
@@ -761,7 +773,7 @@ export default function Ball() {
 
             {/* Run button */}
             <button
-              onClick={runProgram}
+              onClick={() => runProgram()}
               disabled={progRunning || program.length === 0}
               className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-white transition disabled:opacity-50 disabled:cursor-not-allowed ${
                 progRunning

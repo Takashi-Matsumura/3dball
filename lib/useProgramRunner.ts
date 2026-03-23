@@ -13,6 +13,8 @@ export interface RunConfig {
   branchCells?: BranchCell[];
   /** Called on intermediate steps to check if goal was passed through */
   isPassthrough?: (pos: GridPos, stepIndex: number, totalSteps: number) => boolean;
+  /** When true, swap if/else branches in BRANCH blocks */
+  reverseBranch?: boolean;
 }
 
 export interface RunResult {
@@ -101,48 +103,19 @@ export function useProgramRunner() {
       pos = await execMove(pos, step, gridSize, obstacles, isPassthrough, progIdx, totalSteps, passedGoalRef);
       await new Promise((r) => setTimeout(r, 200));
       if (step !== "JUMP") {
-        const result = await autoBranch(pos, step, gridSize, obstacles, branchCells, isPassthrough, progIdx, totalSteps, passedGoalRef, branchUsedRef);
-        if (result.burstFromBranch) return result;
-        pos = result.pos;
+        // In BRANCH body: landing on "?" without explicit BRANCH card → burst
+        if (branchCells.length > 0) {
+          const resolved = resolveBranchDir(pos, step, branchCells);
+          if (resolved) return { pos, burstFromBranch: true };
+        }
       }
-    }
-    return { pos };
-  };
-
-  /** Auto-branch resolution loop for "?" cells (used when no BRANCH block follows) */
-  const autoBranch = async (
-    currentPos: GridPos, lastDir: string, gridSize: number,
-    obstacles: GridPos[], branchCells: BranchCell[],
-    isPassthrough: RunConfig["isPassthrough"],
-    stepIdx: number, totalSteps: number,
-    passedGoalRef: { value: boolean }, branchUsedRef: { value: boolean },
-  ): Promise<{ pos: GridPos; burstFromBranch?: boolean }> => {
-    let pos = currentPos;
-    let dir = lastDir;
-    let chain = 0;
-    while (branchCells.length > 0) {
-      const resolved = resolveBranchDir(pos, dir, branchCells);
-      if (!resolved) break;
-      const branchDir = resolved.branchDir;
-      chain++;
-      branchUsedRef.value = true;
-      if (chain >= 7) return { pos, burstFromBranch: true };
-      await waitJump(playBranch);
-      await new Promise((r) => setTimeout(r, 300));
-      const next = moveGrid(pos, branchDir, gridSize, obstacles);
-      if (!next) { playBump(); break; }
-      if (isPassthrough?.(next, stepIdx, totalSteps)) passedGoalRef.value = true;
-      pos = next;
-      dir = branchDir;
-      await waitMove(next);
-      await new Promise((r) => setTimeout(r, 200));
     }
     return { pos };
   };
 
   /** Run program steps with animations. Returns final position and passedGoal flag. */
   const runSteps = useCallback(async (config: RunConfig): Promise<RunResult> => {
-    const { steps, startPos, gridSize, obstacles, branchCells = [], isPassthrough } = config;
+    const { steps, startPos, gridSize, obstacles, branchCells = [], isPassthrough, reverseBranch = false } = config;
 
     setGridPos(startPos);
     setIsAnimating(false);
@@ -181,7 +154,8 @@ export function useProgramRunner() {
         const branchResolved = arrivalDir ? resolveBranchDir(currentPos, arrivalDir, branchCells) : null;
         if (branchResolved) {
           branchUsedRef.value = true;
-          const branchDir = branchResolved.branchDir;
+          const opposites: Record<string, string> = { UP: "DOWN", DOWN: "UP", LEFT: "RIGHT", RIGHT: "LEFT" };
+          const branchDir = reverseBranch ? opposites[branchResolved.branchDir] : branchResolved.branchDir;
           const isH = isHorizontalDir(arrivalDir);
           // if-block = UP (horizontal arrival) or RIGHT (vertical arrival)
           const isIfBranch = isH ? branchDir === "UP" : branchDir === "RIGHT";
@@ -229,25 +203,18 @@ export function useProgramRunner() {
           currentPos = next;
           await waitMove(next);
 
-          // Auto-branch ONLY if no BRANCH token ahead for the same direction group
-          // e.g. "LEFT LEFT BRANCH" → suppress auto-branch for both LEFTs
+          // Check if landed on "?" cell without a BRANCH card → burst
           let hasBranchAhead = false;
           for (let k = i + 1; k < expanded.length; k++) {
             if (expanded[k] === "BRANCH") { hasBranchAhead = true; break; }
             if (expanded[k] !== token) break;
           }
-          if (hasBranchAhead) {
-            // BRANCH block follows — skip auto-branch, let BRANCH handler deal with it
-          } else {
-            const result = await autoBranch(
-              currentPos, token, gridSize, obstacles, branchCells,
-              isPassthrough, i, expanded.length,
-              passedGoalRef, branchUsedRef,
-            );
-            if (result.burstFromBranch) {
-              return { finalPos: result.pos, passedGoal: passedGoalRef.value, burstFromBranch: true, branchUsed: branchUsedRef.value };
+          if (!hasBranchAhead && branchCells.length > 0) {
+            const resolved = resolveBranchDir(currentPos, token, branchCells);
+            if (resolved) {
+              // Landed on "?" without BRANCH card → execution failure
+              return { finalPos: currentPos, passedGoal: passedGoalRef.value, burstFromBranch: true, branchUsed: branchUsedRef.value };
             }
-            currentPos = result.pos;
           }
         }
       }
