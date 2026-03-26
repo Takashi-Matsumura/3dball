@@ -161,15 +161,22 @@ export function useProgramRunner() {
           const isIfBranch = isH ? branchDir === "UP" : branchDir === "RIGHT";
           const chosenBody = isIfBranch ? ifBody : elseBody;
 
-          // Jump + move in branch direction
-          await waitJump(playBranch);
-          await new Promise((r) => setTimeout(r, 300));
+          // Jump-move: jump and move simultaneously
           const branchNext = moveGrid(currentPos, branchDir, gridSize, obstacles);
           if (branchNext) {
             currentPos = branchNext;
-            await waitMove(branchNext);
+            setJumping(true);
+            playBranch();
+            playMove();
+            setIsAnimating(true);
+            setGridPos(branchNext);
+            await Promise.all([
+              new Promise<void>((resolve) => { jumpDoneResolveRef.current = resolve; }),
+              new Promise<void>((resolve) => { animDoneResolveRef.current = resolve; }),
+            ]);
             await new Promise((r) => setTimeout(r, 200));
           } else {
+            await waitJump(playBranch);
             playBump();
           }
 

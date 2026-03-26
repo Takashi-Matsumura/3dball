@@ -103,11 +103,10 @@ export default function Ball() {
       playBranch();
       const tryMove = moveGrid(gridPos, branchDir, level.gridSize, level.obstacles);
       if (tryMove) {
-        setTimeout(() => {
-          setGridPos(tryMove);
-          setIsAnimating(true);
-          playMove();
-        }, 300);
+        // Jump-move: jump and move simultaneously (like arrow key during jump)
+        setGridPos(tryMove);
+        setIsAnimating(true);
+        playMove();
       } else {
         // Blocked — bump but keep chain counting
         setTimeout(() => playBump(), 300);
