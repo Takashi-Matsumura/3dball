@@ -506,7 +506,7 @@ export default function Ball() {
   return (
     <div className="relative h-screen w-screen">
       {/* Programming panel — left */}
-      <div className="absolute top-4 left-4 z-10">
+      <div className={`absolute top-4 left-4 ${progMode ? "z-20 bottom-12 flex flex-col" : "z-10"}`}>
         {/* Panel header */}
         {!progMode ? (
           <button
@@ -521,7 +521,7 @@ export default function Ball() {
             </svg>
           </button>
         ) : (
-          <div className="w-52 flex items-center bg-white/95 rounded-lg shadow-md backdrop-blur border border-gray-200 overflow-hidden">
+          <div className="w-64 flex items-center bg-white/95 rounded-lg shadow-md backdrop-blur border border-gray-200 overflow-hidden">
             <button
               onClick={() => {
                 setProgMode(false);
@@ -544,7 +544,7 @@ export default function Ball() {
 
         {/* Panel body */}
         {progMode && (
-          <div className="mt-1 flex flex-col bg-white/95 rounded-lg shadow-md backdrop-blur border border-gray-200 overflow-hidden" style={{ maxHeight: "calc(100vh - 8rem)" }}>
+          <div className="w-64 mt-1 flex flex-col flex-1 min-h-0 bg-white/95 rounded-lg shadow-md backdrop-blur border border-gray-200 overflow-hidden">
             {/* New button */}
             <button
               onClick={() => {
