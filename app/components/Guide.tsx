@@ -85,6 +85,7 @@ const SHORTCUT_KEYS = [
   "shortcutD",
   "shortcutF",
   "shortcutH",
+  "shortcutLang",
 ] as const;
 
 export function HelpPanel({

@@ -147,6 +147,7 @@ const translations = {
   shortcutD: { ja: "D 2D/3Dきりかえ", en: "D 2D/3D toggle", es: "D Cambiar 2D/3D" },
   shortcutF: { ja: "F1-F3 レベル", en: "F1-F3 Level", es: "F1-F3 Nivel" },
   shortcutH: { ja: "H ガイド", en: "H Guide", es: "H Guía" },
+  shortcutLang: { ja: "J/E/N ことば", en: "J/E/N Language", es: "J/E/N Idioma" },
 
   // Guide — font size setting
   guideFontSize: { ja: "ガイド文字サイズ", en: "Guide font size", es: "Tamaño de fuente guía" },

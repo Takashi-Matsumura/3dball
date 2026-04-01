@@ -376,6 +376,12 @@ export default function Ball() {
         guide.toggleHelp();
         return;
       }
+      // J/E/N → switch language
+      if ((e.key === "j" || e.key === "e" || e.key === "n") && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setLocale(e.key === "j" ? "ja" : e.key === "e" ? "en" : "es");
+        return;
+      }
       // S / * → toggle settings
       if ((e.key === "s" || e.key === "*") && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
