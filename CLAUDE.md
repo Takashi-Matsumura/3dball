@@ -18,7 +18,7 @@
 - **lib/useProgramRunner.ts** — プログラム実行エンジン (React フック)。`RunConfig` / `RunResult` インターフェース。`waitJump()` / `waitMove()` アニメーションプリミティブ、`execMove()` (単一ステップ実行)、`execBody(body, ..., bodyIndexMap?)` (BRANCH ブロックボディ実行、`bodyIndexMap` で各ステップの `progIndex` を更新しハイライト連動)、`autoBranch()` (「？」セル自動分岐ループ)、`runSteps()` (メインループ: BRANCH ブロック解決 + if/else 分岐実行を含む)。`triggerJump()` / `resetProgIndex()` も公開。Ball.tsx と ReplayScene.tsx の両方で使用。
 - **lib/sounds.ts** — Web Audio API による合成効果音 (外部ファイル不要)。`playMove()`, `playJump()`, `playBump()`, `playNfcScan()`, `playSuccess()`, `playBurst()`, `playBranch()`。
 - **app/components/Scene.tsx** — 共有 3D コンポーネント (`SceneLighting`, `CameraController`, `Board`, `Ground`, `Sphere`, `CellMarker`, `TextSprite`, `ObstacleMarker`, `BranchMarker`)。Ball.tsx とリプレイページの両方で使用。`SceneLighting` は `gridSize` に応じて fog 距離をスケーリング (縦画面+大グリッドでボードが霧に消える問題を防止)。`CameraController` はアスペクト比 + `gridSize` に応じてカメラ距離を自動調整 (縦画面・大グリッド対応)。`CellMarker` はパルスリングマーカー、`TextSprite` はキャンバスベースのテキストスプライト (レベルのスタート/ゴール表示用)。`ObstacleMarker` は赤半透明ブロック (Lv2 障害物)。`BranchMarker` は紫ダイヤモンド + 方向矢印 (Lv3 条件分岐セル)。すべてのコンポーネントが `gridSize` パラメータで可変グリッドサイズに対応。`Sphere` はバーストアニメーション (パーティクル散乱) を内蔵。
-- **app/Ball.tsx** — メインの 3D シーン。NFC ポーリング (stale クロージャ防止に `levelRef` 使用)、キーボード操作、プログラミングモード、NTAG 書き込みモーダルを含む。レベルロジックは `useLevel` フックに委譲。BRANCH ブロック実行中は if/else サブステップ行とアクティブ分岐ヘッダーをハイライト表示。
+- **app/Ball.tsx** — メインの 3D シーン。NFC ポーリング (stale クロージャ防止に `levelRef` 使用)、キーボード操作、プログラミングモード、NTAG 書き込みモーダル、ユーザーガイド (`useGuide` 統合) を含む。レベルロジックは `useLevel` フックに委譲。BRANCH ブロック実行中は if/else サブステップ行とアクティブ分岐ヘッダーをハイライト表示。
 - **app/replay/page.tsx** — リプレイページ (サーバーコンポーネント)。URL パラメータからプログラムを読み取り `ReplayScene` に渡す。
 - **app/replay/ReplayScene.tsx** — リプレイ UI (クライアントコンポーネント)。ページ読み込み後に自動再生、方向アイコン列ハイライト、Replay ボタン、3D/2D 切替。
 - **app/nfc/** — NFC カード登録ページ (UID ベースのマッピング)
@@ -26,7 +26,10 @@
 - **app/api/nfc/write/** — NTAG NDEF URL 書き込み API ルート
 - **lib/nfc.ts** — nfc-pcsc シングルトン。FeliCa カード対応 (UID マッピング方式) + NTAG NDEF URL 書き込み。動的 require で Vercel 互換。
 - **lib/db.ts** — better-sqlite3 による NFC カード登録の永続化 (`data/nfc.db`)。動的 require で Vercel 互換。
-- **lib/i18n.tsx** — i18n (ja/en/es)。リプレイページ・NTAG 書き込み関連のキーを含む。
+- **lib/guide-content.ts** — ユーザーガイドデータ定義 (React 非依存)。`HintRule[]` (状態→ヒントのマッピング、優先順位付き)、`GuideContext` インターフェース、`HelpContent` / `HELP_CONTENTS` (レベル別ヘルプパネル内容: ミッション・手順・学習コンセプト)。
+- **lib/useGuide.ts** — ユーザーガイド状態管理フック。`dismissedHints` (localStorage 永続化)、`activeHint` (現在のヒント)、`helpOpen` (ヘルプパネル開閉)、`resolveHint(context)` (アプリ状態からヒント解決)、`resetGuide()` (セッションリセット)。
+- **app/components/Guide.tsx** — ガイド UI コンポーネント群。`HintBubble` (コンテキストヒント吹き出し、SVG アイコン付き)、`HelpButton` (常設「?」ボタン)、`HelpPanel` (レベル別学習コースモーダル)、`WelcomePanel` (初回自動表示の Welcome ページ)。`GuideFontSize` 型 (小/中/大) で文字サイズ切替対応。全アイコンは SVG インライン (絵文字不使用)。
+- **lib/i18n.tsx** — i18n (ja/en/es)。リプレイページ・NTAG 書き込み・ガイド (ヒント・ヘルプパネル・Welcome ページ)・ショートカット関連のキーを含む。
 
 ## Key Design Decisions
 
@@ -50,8 +53,9 @@
 - **x2/x3 ループカード**: プログラミングモード専用。直前の命令を繰り返す (x2=計2回, x3=計3回)。連続使用は加算 (`→ x2 x2` = 4回)。プログラミングパネルではグループ表示 (`RIGHT ×3`)。フリー移動では無効。`expandProgram()` / `expandProgramWithMap()` で実行時に展開。
 - **Lv3 モード (条件分岐)**: フッターの Lv3 トグル (F3 キー) で ON/OFF。5x5 グリッド上にランダムなスタート/ゴール (マンハッタン距離 4 以上) + 障害物なし + 1〜2個の「？」セル (条件分岐ポイント、四隅除外) を配置。お題なし (`hasChallenge: false`)。代わりに「マップ変更」ボタン (Tab) でマップ再生成。**ゴール到達には「？」セルを一度は経由する必要がある** (`branchUsed` フラグで追跡)。「？」セルは紫ダイヤモンドマーカーで表示され、2つの方向矢印で分岐先を示す。到着方向に基づいて自動的に別方向へ移動: 水平方向 (LEFT/RIGHT) から来た → 垂直方向 (UP or DOWN) へ、垂直方向 (UP/DOWN) から来た → 水平方向 (LEFT or RIGHT) へ。分岐先が壁の場合はバンプ音で停止。7回連続分岐でデッドロック検出 → バースト。`BranchCell` インターフェースで `horizontalBranch` / `verticalBranch` を定義。分岐方向解決は `resolveBranchDir()` に集約。NTAG エンコード: `br` パラメータ (`"12UR"` = col1,row2,hBranch=UP,vBranch=RIGHT)。
 - **？カード (BRANCH、if-else 条件分岐)**: Lv3 プログラミングモード専用。方向カードに付ける修飾カード (x2/x3 と同じ位置づけ)。NFC カード登録ページで 8 枚目として登録可能。データモデル: フラットな `string[]` 内に区切りトークン `BRANCH`, `PIPE`, `SLASH` で if-else ブロックを表現 (例: `["RIGHT", "BRANCH", "UP", "PIPE", "DOWN", "SLASH"]`)。エンコード: `B`=BRANCH, `E`=PIPE, `F`=SLASH。水平方向 + ？ → `if (UP) {...} else (DOWN) {...}`、垂直方向 + ？ → `if (RIGHT) {...} else (LEFT) {...}`。実行時: 方向移動後「？」セル上なら分岐方向に応じた if/else ブロックを実行、「？」セルにいなければ両方スキップ。BRANCH ブロック内でのゴール到達は passthrough 扱いしない (最終到達地点の可能性があるため)。ネスト禁止。`pBlockEditing` 状態で if/else ブロック編集を管理、if/else ヘッダークリックで再編集モード、カードは PIPE/SLASH の前に挿入。`expandProgramWithMap()` は BRANCH ブロックをそのまま保持し内部の x2/x3 のみ展開。**実行時ハイライト**: `expandProgramWithMap()` が BRANCH ボディ内の各トークンを元ソースの絶対インデックスにマップし、`execBody()` が `bodyIndexMap` 経由で各ステップの `progIndex` を更新。プログラミングパネルとリプレイページの両方で if/else サブステップが個別にハイライトされる。
-- **キーボードショートカット**: P=プログラミング ON/OFF、S=設定 ON/OFF、D=2D/3D 切替、F1=Lv1、F2=Lv2、F3=Lv3、Escape=レベル解除、Tab=お題 (Lv1/Lv2) / マップ変更 (Lv3)、Enter=つぎへ (クリア時) / Run (プログラミングモード)、Shift+Enter=New (プログラミングモード)、Backspace=プログラム末尾削除 (プログラミングモード)、矢印キー=移動、Space=ジャンプ。
-- **テンキー対応 (BUFFALO BSTKH100)**: NumLock OFF で使用。4/8/6/2=移動 (矢印キー)、5(Clear)=ジャンプ、/=プログラミング ON/OFF、*=設定 ON/OFF、9(PageUp)=2D/3D 切替、+=レベルサイクル切替 (OFF→Lv1→Lv2→Lv3→OFF)、-=レベル解除、0(Insert)=New、BackSpace=プログラム末尾削除、.(Delete)=お題/マップ変更、Tab=お題/マップ変更、Enter=Run/つぎへ。
+- **ユーザーガイド**: STEM 教育イベントでの講師負担軽減のため、アプリ内学習サポートを実装。3 つの柱: (1) コンテキスト型ヒント — アプリ状態に応じた吹き出し表示 (8秒自動消滅、localStorage で表示済み管理)、(2) ヘルプパネル — ?ボタン/Hキーで開閉、レベル別学習コース (ミッション・手順・学習コンセプト・ショートカット一覧)、(3) Welcome ページ — 初回自動表示 (localStorage 永続化) + Wキーで手動表示、アプリ紹介・レベル一覧・操作方法。ガイド文字サイズは設定パネルで小/中/大を選択可能 (localStorage 永続化)。レベル別に表現を段階化: Playground/Lv1 はひらがな多め (幼児〜低学年)、Lv2 は漢字増 (中学年)、Lv3 は論理的表現 (高学年)。「学べること」セクションは保護者向けに通常の漢字混じり表現。全アイコンは SVG インライン (絵文字不使用)。
+- **キーボードショートカット**: P=プログラミング ON/OFF、S=設定 ON/OFF、D=2D/3D 切替、H=ガイド ON/OFF、W=Welcome ページ ON/OFF、J/E/N=言語切替 (日本語/English/Español)、F1=Lv1、F2=Lv2、F3=Lv3、Escape=レベル解除、Tab=お題 (Lv1/Lv2) / マップ変更 (Lv3)、Enter=つぎへ (クリア時) / Run (プログラミングモード)、Shift+Enter=New (プログラミングモード)、Backspace=プログラム末尾削除 (プログラミングモード)、矢印キー=移動、Space=ジャンプ。
+- **テンキー対応 (BUFFALO BSTKH100)**: NumLock OFF で使用。4/8/6/2=移動 (矢印キー)、5(Clear)=ジャンプ、/=プログラミング ON/OFF、*=設定 ON/OFF、9(PageUp)=2D/3D 切替、7(Home)=ガイド ON/OFF、+=レベルサイクル切替 (OFF→Lv1→Lv2→Lv3→OFF)、-=レベル解除、0(Insert)=New、BackSpace=プログラム末尾削除、.(Delete)=お題/マップ変更、Tab=お題/マップ変更、Enter=Run/つぎへ。
 
 ## Deployment
 

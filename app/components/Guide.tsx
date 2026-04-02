@@ -1,11 +1,123 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import { HintRule } from "@/lib/guide-content";
 import { HELP_CONTENTS } from "@/lib/useGuide";
 
 export type GuideFontSize = "small" | "medium" | "large";
+
+// ── SVG Icons ──
+
+function IconGamepad({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <path d="M6 12h4M8 10v4" />
+      <circle cx="15" cy="11" r="1" fill="currentColor" />
+      <circle cx="18" cy="13" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+function IconListOrdered({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <line x1="10" y1="6" x2="21" y2="6" />
+      <line x1="10" y1="12" x2="21" y2="12" />
+      <line x1="10" y1="18" x2="21" y2="18" />
+      <path d="M4 6h1v4" />
+      <path d="M4 10h2" />
+      <path d="M3 14h2l-2 2h2" />
+    </svg>
+  );
+}
+
+function IconRepeat({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="17 1 21 5 17 9" />
+      <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+      <polyline points="7 23 3 19 7 15" />
+      <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    </svg>
+  );
+}
+
+function IconGitBranch({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <line x1="6" y1="3" x2="6" y2="15" />
+      <circle cx="18" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M18 9a9 9 0 0 1-9 9" />
+    </svg>
+  );
+}
+
+function IconCard({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M7 15h0M2 9.5h20" />
+    </svg>
+  );
+}
+
+function IconStar({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" stroke="none">
+      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+    </svg>
+  );
+}
+
+function IconArrows({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l0 20M2 12l20 0M12 2l-4 4M12 2l4 4M12 22l-4-4M12 22l4-4M2 12l4-4M2 12l4 4M22 12l-4-4M22 12l-4 4" />
+    </svg>
+  );
+}
+
+function IconKeyboard({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M6 8h0M10 8h0M14 8h0M18 8h0M8 12h0M12 12h0M16 12h0M8 16h8" />
+    </svg>
+  );
+}
+
+function IconCode({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="16 18 22 12 16 6" />
+      <polyline points="8 6 2 12 8 18" />
+    </svg>
+  );
+}
+
+function IconBall({ className = "w-8 h-8" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10" />
+      <path d="M12 2a15 15 0 0 0-4 10 15 15 0 0 0 4 10" />
+      <path d="M2 12h20" />
+    </svg>
+  );
+}
+
+// Icon map for hint bubbles
+const HINT_ICONS: Record<string, (p: { className?: string }) => React.ReactElement> = {
+  playground: IconGamepad,
+  "lv1-intro": IconListOrdered,
+  "lv2-intro": IconRepeat,
+  "lv3-intro": IconGitBranch,
+  "prog-first": IconCard,
+  "level-cleared": IconStar,
+};
 
 const fontSizeClasses: Record<GuideFontSize, { hint: string; body: string; label: string; step: string; number: string; shortcut: string; title: string }> = {
   small: { hint: "text-sm", body: "text-sm", label: "text-xs", step: "text-sm", number: "w-5 h-5 text-xs", shortcut: "text-xs", title: "text-lg" },
@@ -56,7 +168,10 @@ export function HintBubble({
         >
           ×
         </button>
-        {td(hint.textKey)}
+        <span className="flex items-center gap-1.5">
+          {HINT_ICONS[hint.id] && (() => { const Icon = HINT_ICONS[hint.id]; return <Icon className="w-4 h-4 flex-shrink-0 text-blue-500" />; })()}
+          {td(hint.textKey)}
+        </span>
       </div>
     </div>
   );
@@ -85,6 +200,7 @@ const SHORTCUT_KEYS = [
   "shortcutD",
   "shortcutF",
   "shortcutH",
+  "shortcutW",
   "shortcutLang",
 ] as const;
 
@@ -188,6 +304,115 @@ export function HelpPanel({
               ))}
             </div>
           </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── WelcomePanel ──
+
+const LEVEL_ITEMS: { icon: (p: { className?: string }) => React.ReactElement; color: string; key: string }[] = [
+  { icon: IconGamepad, color: "text-green-500", key: "welcomePlayground" },
+  { icon: IconListOrdered, color: "text-blue-500", key: "welcomeLv1Desc" },
+  { icon: IconRepeat, color: "text-orange-500", key: "welcomeLv2Desc" },
+  { icon: IconGitBranch, color: "text-purple-500", key: "welcomeLv3Desc" },
+];
+
+const CONTROL_ITEMS: { icon: (p: { className?: string }) => React.ReactElement; color: string; key: string }[] = [
+  { icon: IconKeyboard, color: "text-gray-500", key: "welcomeControlKeys" },
+  { icon: IconCard, color: "text-blue-500", key: "welcomeControlCards" },
+  { icon: IconCode, color: "text-green-500", key: "welcomeControlProg" },
+];
+
+export function WelcomePanel({
+  onClose,
+  fontSize = "small",
+}: {
+  onClose: () => void;
+  fontSize?: GuideFontSize;
+}) {
+  const { td } = useI18n();
+  const [visible, setVisible] = useState(false);
+  const fs = fontSizeClasses[fontSize];
+
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 30);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div
+      className={`absolute inset-0 z-30 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${
+        visible ? "opacity-100" : "opacity-0"
+      }`}
+      onClick={onClose}
+    >
+      <div
+        className={`bg-white rounded-2xl shadow-2xl mx-4 max-w-lg w-full max-h-[85vh] overflow-y-auto transition-transform duration-300 ${
+          visible ? "scale-100" : "scale-95"
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 pt-5 pb-2 text-center">
+          <div className="flex justify-center mb-2 text-blue-500">
+            <IconBall className={fontSize === "large" ? "w-12 h-12" : fontSize === "medium" ? "w-10 h-10" : "w-8 h-8"} />
+          </div>
+          <h1 className={`${fontSize === "large" ? "text-2xl" : fontSize === "medium" ? "text-xl" : "text-lg"} font-bold text-gray-800`}>
+            {td("welcomeTitle")}
+          </h1>
+        </div>
+
+        <div className="px-6 pb-6 space-y-4">
+          {/* Intro */}
+          <p className={`${fs.body} text-gray-600 text-center whitespace-pre-line leading-relaxed`}>
+            {td("welcomeIntro")}
+          </p>
+
+          {/* Levels */}
+          <section>
+            <div className={`${fs.label} font-semibold text-blue-500 uppercase tracking-wide mb-2`}>
+              {td("welcomeLevels")}
+            </div>
+            <div className="space-y-1.5">
+              {LEVEL_ITEMS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.key} className={`flex gap-2 items-center ${fs.step} text-gray-700`}>
+                    <Icon className={`w-4 h-4 flex-shrink-0 ${item.color}`} />
+                    <span>{td(item.key)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Controls */}
+          <section>
+            <div className={`${fs.label} font-semibold text-green-600 uppercase tracking-wide mb-2`}>
+              {td("welcomeControls")}
+            </div>
+            <div className="space-y-1.5">
+              {CONTROL_ITEMS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.key} className={`flex gap-2 items-center ${fs.step} text-gray-700`}>
+                    <Icon className={`w-4 h-4 flex-shrink-0 ${item.color}`} />
+                    <span>{td(item.key)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Start button */}
+          <button
+            onClick={onClose}
+            className={`w-full rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 transition ${fs.body}`}
+          >
+            {td("welcomeStart")}
+          </button>
         </div>
       </div>
     </div>

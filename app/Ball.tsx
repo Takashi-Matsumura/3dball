@@ -20,7 +20,7 @@ import { useLevel } from "@/lib/useLevel";
 import { useProgramRunner } from "@/lib/useProgramRunner";
 import { gridCenter, LEVELS } from "@/lib/levels";
 import { useGuide } from "@/lib/useGuide";
-import { HintBubble, HelpButton, HelpPanel, GuideFontSize } from "@/app/components/Guide";
+import { HintBubble, HelpButton, HelpPanel, WelcomePanel, GuideFontSize } from "@/app/components/Guide";
 
 export default function Ball() {
   const { locale, setLocale, t, td } = useI18n();
@@ -63,6 +63,14 @@ export default function Ball() {
     pBlockEditingRef.current = v;
     setPBlockEditingState(v);
   }, []);
+
+  // Welcome page
+  const [showWelcome, setShowWelcome] = useState(() => {
+    if (typeof window !== "undefined") {
+      return !localStorage.getItem("welcomeSeen");
+    }
+    return false;
+  });
 
   // NTAG write
   const [showNtagModal, setShowNtagModal] = useState(false);
@@ -374,6 +382,12 @@ export default function Ball() {
       if ((e.key === "h" || e.key === "Home") && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         guide.toggleHelp();
+        return;
+      }
+      // W → toggle welcome
+      if (e.key === "w" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setShowWelcome((v) => !v);
         return;
       }
       // J/E/N → switch language
@@ -1161,6 +1175,17 @@ export default function Ball() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Welcome page */}
+      {showWelcome && (
+        <WelcomePanel
+          onClose={() => {
+            setShowWelcome(false);
+            localStorage.setItem("welcomeSeen", "1");
+          }}
+          fontSize={guideFontSize}
+        />
       )}
 
       {/* Guide hint bubble */}
