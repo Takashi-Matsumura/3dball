@@ -65,12 +65,12 @@ export default function Ball() {
   }, []);
 
   // Welcome page
-  const [showWelcome, setShowWelcome] = useState(() => {
-    if (typeof window !== "undefined") {
-      return !localStorage.getItem("welcomeSeen");
+  const [showWelcome, setShowWelcome] = useState(false);
+  useEffect(() => {
+    if (!localStorage.getItem("welcomeSeen")) {
+      setShowWelcome(true);
     }
-    return false;
-  });
+  }, []);
 
   // NTAG write
   const [showNtagModal, setShowNtagModal] = useState(false);

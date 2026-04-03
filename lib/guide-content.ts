@@ -57,25 +57,6 @@ export const HINT_RULES: HintRule[] = [
     autoHideMs: 10000,
     match: (ctx) => ctx.levelCleared,
   },
-  // Level intros (one-time per session)
-  {
-    id: "lv3-intro",
-    textKey: "guideLv3Intro",
-    anchor: "bottom-center",
-    match: (ctx) => ctx.levelId === "lv3",
-  },
-  {
-    id: "lv2-intro",
-    textKey: "guideLv2Intro",
-    anchor: "bottom-center",
-    match: (ctx) => ctx.levelId === "lv2",
-  },
-  {
-    id: "lv1-intro",
-    textKey: "guideLv1Intro",
-    anchor: "bottom-center",
-    match: (ctx) => ctx.levelId === "lv1",
-  },
   // Programming mode first open
   {
     id: "prog-first",
