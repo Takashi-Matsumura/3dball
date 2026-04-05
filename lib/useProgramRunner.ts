@@ -15,6 +15,8 @@ export interface RunConfig {
   isPassthrough?: (pos: GridPos, stepIndex: number, totalSteps: number) => boolean;
   /** When true, swap if/else branches in BRANCH blocks */
   reverseBranch?: boolean;
+  /** Called each time a JUMP action executes (so move counters can update in real time) */
+  onJump?: () => void;
 }
 
 export interface RunResult {
@@ -22,6 +24,8 @@ export interface RunResult {
   passedGoal: boolean;
   burstFromBranch?: boolean;
   branchUsed?: boolean;
+  /** Number of JUMP actions executed (not counted via position change) */
+  jumpCount?: number;
 }
 
 export function useProgramRunner() {
@@ -93,6 +97,8 @@ export function useProgramRunner() {
     isPassthrough: RunConfig["isPassthrough"],
     progIdx: number, totalSteps: number,
     passedGoalRef: { value: boolean }, branchUsedRef: { value: boolean },
+    jumpCountRef: { value: number },
+    onJump?: () => void,
     bodyIndexMap?: number[],
   ): Promise<{ pos: GridPos; burstFromBranch?: boolean }> => {
     let pos = startPos;
@@ -100,6 +106,7 @@ export function useProgramRunner() {
       const step = body[si];
       if (step === "PIPE" || step === "SLASH" || step === "BRANCH") continue;
       if (bodyIndexMap) setProgIndex(bodyIndexMap[si]);
+      if (step === "JUMP") { jumpCountRef.value += 1; onJump?.(); }
       pos = await execMove(pos, step, gridSize, obstacles, isPassthrough, progIdx, totalSteps, passedGoalRef);
       await new Promise((r) => setTimeout(r, 200));
       if (step !== "JUMP") {
@@ -115,7 +122,7 @@ export function useProgramRunner() {
 
   /** Run program steps with animations. Returns final position and passedGoal flag. */
   const runSteps = useCallback(async (config: RunConfig): Promise<RunResult> => {
-    const { steps, startPos, gridSize, obstacles, branchCells = [], isPassthrough, reverseBranch = false } = config;
+    const { steps, startPos, gridSize, obstacles, branchCells = [], isPassthrough, reverseBranch = false, onJump } = config;
 
     setGridPos(startPos);
     setIsAnimating(false);
@@ -127,6 +134,7 @@ export function useProgramRunner() {
     let currentPos = { ...startPos };
     const passedGoalRef = { value: false };
     const branchUsedRef = { value: false };
+    const jumpCountRef = { value: 0 };
 
     for (let i = 0; i < expanded.length; i++) {
       const token = expanded[i];
@@ -189,10 +197,10 @@ export function useProgramRunner() {
           const result = await execBody(
             chosenBody, currentPos, gridSize, obstacles, branchCells,
             undefined, indexMap[i], expanded.length,
-            passedGoalRef, branchUsedRef, bodyIndexMap,
+            passedGoalRef, branchUsedRef, jumpCountRef, onJump, bodyIndexMap,
           );
           if (result.burstFromBranch) {
-            return { finalPos: result.pos, passedGoal: passedGoalRef.value, burstFromBranch: true, branchUsed: branchUsedRef.value };
+            return { finalPos: result.pos, passedGoal: passedGoalRef.value, burstFromBranch: true, branchUsed: branchUsedRef.value, jumpCount: jumpCountRef.value };
           }
           currentPos = result.pos;
         }
@@ -202,6 +210,8 @@ export function useProgramRunner() {
       }
 
       if (token === "JUMP") {
+        jumpCountRef.value += 1;
+        onJump?.();
         await waitJump();
       } else {
         const next = moveGrid(currentPos, token, gridSize, obstacles);
@@ -220,7 +230,7 @@ export function useProgramRunner() {
             const resolved = resolveBranchDir(currentPos, token, branchCells);
             if (resolved) {
               // Landed on "?" without BRANCH card → execution failure
-              return { finalPos: currentPos, passedGoal: passedGoalRef.value, burstFromBranch: true, branchUsed: branchUsedRef.value };
+              return { finalPos: currentPos, passedGoal: passedGoalRef.value, burstFromBranch: true, branchUsed: branchUsedRef.value, jumpCount: jumpCountRef.value };
             }
           }
         }
@@ -229,7 +239,7 @@ export function useProgramRunner() {
     }
     setProgIndex(-1);
 
-    return { finalPos: currentPos, passedGoal: passedGoalRef.value, branchUsed: branchUsedRef.value };
+    return { finalPos: currentPos, passedGoal: passedGoalRef.value, branchUsed: branchUsedRef.value, jumpCount: jumpCountRef.value };
   }, []);
 
   /** Trigger a jump and wait for it to complete */

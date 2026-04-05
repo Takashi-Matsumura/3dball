@@ -212,10 +212,13 @@ export function checkProgramResult(
   goal: GridPos,
   passedGoal: boolean,
   branchUsed: boolean = false,
+  moves: number = 0,
+  challenge: number | null = null,
 ): boolean {
   if (passedGoal) return false;
   if (finalPos.col !== goal.col || finalPos.row !== goal.row) return false;
   if (config.branchCount && !branchUsed) return false;
+  if (challenge !== null && moves !== challenge) return false;
   return true;
 }
 

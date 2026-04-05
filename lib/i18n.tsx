@@ -106,48 +106,49 @@ const translations = {
   helpShortcuts: { ja: "ショートカット", en: "Shortcuts", es: "Atajos" },
 
   // Guide — playground
-  helpTitlePlayground: { ja: "じゆうにあそぼう！", en: "Free Play!", es: "¡Juego libre!" },
-  helpObjPlayground: { ja: "ボールをじゆうにうごかしてみよう", en: "Move the ball around freely", es: "Mueve la bola libremente" },
+  helpTitlePlayground: { ja: "自由モード", en: "Free Play!", es: "¡Juego libre!" },
+  helpObjPlayground: { ja: "ボールを自由に動かしてみよう。", en: "Move the ball around freely", es: "Mueve la bola libremente" },
   helpConceptPlayground: { ja: "入力と出力 — ボタンを押すとボールが動く", en: "Input & Output — press a button, ball moves", es: "Entrada y salida — presiona un botón, la bola se mueve" },
-  helpStepPlayground1: { ja: "やじるしキー か カードでボールをうごかそう", en: "Use arrow keys or cards to move", es: "Usa flechas o tarjetas para mover" },
+  helpStepPlayground1: { ja: "矢印キーで上下左右に動かせるよ。", en: "Use arrow keys or cards to move", es: "Usa flechas o tarjetas para mover" },
   helpStepPlayground2: { ja: "スペースキーでジャンプ！", en: "Press Space to jump!", es: "¡Presiona Espacio para saltar!" },
-  helpStepPlayground3: { ja: "できたら Lv1 にいこう！", en: "Ready? Try Lv1!", es: "¿Listo? ¡Prueba Lv1!" },
+  helpStepPlayground3: { ja: "カードも使って同じようにボールを自由に動かしてみよう。", en: "Try moving the ball with cards too!", es: "¡Prueba mover la bola con tarjetas también!" },
 
   // Guide — Lv1
-  helpTitleLv1: { ja: "Lv1: じゅんばんにうごかそう", en: "Lv1: Move step by step", es: "Lv1: Mueve paso a paso" },
-  helpObjLv1: { ja: "ボールをゴールまでうごかそう！", en: "Move the ball to the goal!", es: "¡Mueve la bola a la meta!" },
+  helpTitleLv1: { ja: "レベル１（順番）", en: "Lv1: Move step by step", es: "Lv1: Mueve paso a paso" },
+  helpObjLv1: { ja: "スタートからゴールまで、ボールを動かそう。", en: "Move the ball to the goal!", es: "¡Mueve la bola a la meta!" },
   helpConceptLv1: { ja: "逐次処理 — 命令を順番にひとつずつ実行する", en: "Sequential — run commands one by one", es: "Secuencial — ejecutar uno por uno" },
-  helpStepLv1_1: { ja: "みどり＝スタート、オレンジ＝ゴール", en: "Green = Start, Orange = Goal", es: "Verde = Inicio, Naranja = Meta" },
-  helpStepLv1_2: { ja: "やじるしキーで 1マスずつうごかそう", en: "Use arrow keys to move one step at a time", es: "Usa las flechas para mover paso a paso" },
-  helpStepLv1_3: { ja: "P でプログラミング → カードでめいれいをならべよう", en: "P for Programming → stack cards to plan", es: "P para Programar → apila tarjetas" },
-  helpStepLv1_4: { ja: "Run をおしてじっこう！", en: "Press Run to go!", es: "¡Presiona Run para ejecutar!" },
+  helpStepLv1_1: { ja: "矢印キーで１マスずつ進めるよ。", en: "Use arrow keys to move one step at a time", es: "Usa las flechas para mover paso a paso" },
+  helpStepLv1_2: { ja: "それができたらプログラミングモードで、カードを順番に並べて実行してみよう！", en: "Then switch to Programming mode and line up cards in order!", es: "Luego, en modo Programación, alinea las tarjetas en orden." },
+  helpStepLv1_3: { ja: "「お題」ボタンで目標の回数が出るよ。", en: "The Challenge button shows the target move count.", es: "El botón Reto muestra el número objetivo de movimientos." },
+  helpStepLv1_4: { ja: "めざせぴったりクリア！", en: "Aim for a perfect clear!", es: "¡Intenta un despeje perfecto!" },
 
-  // Guide — Lv2 (小学校中学年向け — 漢字を増やし、少し説明的に)
-  helpTitleLv2: { ja: "Lv2: 繰り返しを使ってゴール", en: "Lv2: Use loops to reach goal", es: "Lv2: Usa bucles para llegar" },
-  helpObjLv2: { ja: "障害物をよけてゴールしよう！", en: "Dodge obstacles and reach the goal!", es: "¡Esquiva obstáculos y llega a la meta!" },
+  // Guide — Lv2
+  helpTitleLv2: { ja: "レベル２（繰り返し）", en: "Lv2: Use loops to reach goal", es: "Lv2: Usa bucles para llegar" },
+  helpObjLv2: { ja: "ブロックをよけながらゴールをめざそう。", en: "Dodge obstacles and reach the goal!", es: "¡Esquiva obstáculos y llega a la meta!" },
   helpConceptLv2: { ja: "繰り返し処理 — 同じ命令を何度も実行する", en: "Loops — repeat the same command", es: "Bucles — repetir el mismo comando" },
-  helpStepLv2_1: { ja: "赤いブロックは通れない壁だよ", en: "Red blocks are walls!", es: "¡Los bloques rojos son muros!" },
-  helpStepLv2_2: { ja: "×2/×3 カードで同じ方向を繰り返そう", en: "Use ×2/×3 cards to repeat a direction", es: "Usa tarjetas ×2/×3 para repetir" },
-  helpStepLv2_3: { ja: "例えば「→ ×3」で右に 3マス進む", en: "e.g. → ×3 = move right 3 times", es: "ej. → ×3 = mover derecha 3 veces" },
+  helpStepLv2_1: { ja: "赤いブロックはぶつかると止まるよ。", en: "Red blocks stop you when you hit them.", es: "Los bloques rojos te detienen al chocar." },
+  helpStepLv2_2: { ja: "×2 や ×3 カードを使うと、同じ動きを繰り返せるよ。", en: "Use ×2 / ×3 cards to repeat the same move.", es: "Usa tarjetas ×2 / ×3 para repetir el mismo movimiento." },
+  helpStepLv2_3: { ja: "たとえば「→ ×3」で右に３マス進む！", en: "e.g. → ×3 moves right 3 times!", es: "Por ejemplo: → ×3 mueve a la derecha 3 veces." },
   helpStepLv2_4: { ja: "少ないカードでクリアできるかな？", en: "Can you clear with fewer cards?", es: "¿Puedes completar con menos tarjetas?" },
 
-  // Guide — Lv3 (小学校高学年向け — 漢字多め、論理的な説明)
-  helpTitleLv3: { ja: "Lv3: 条件分岐を使おう", en: "Lv3: Use conditionals", es: "Lv3: Usa condicionales" },
-  helpObjLv3: { ja: "分岐セルを通ってゴールしよう！", en: "Pass through ? cells to reach the goal!", es: "¡Pasa por celdas ? para llegar!" },
+  // Guide — Lv3
+  helpTitleLv3: { ja: "レベル３（条件分岐）", en: "Lv3: Use conditionals", es: "Lv3: Usa condicionales" },
+  helpObjLv3: { ja: "必ず「？」マスを通ってゴールしよう。", en: "Pass through ? cells to reach the goal!", es: "¡Pasa por celdas ? para llegar!" },
   helpConceptLv3: { ja: "条件分岐 — 条件によって進む道が変わる (if/else)", en: "Conditionals — the path changes (if/else)", es: "Condicionales — el camino cambia (if/else)" },
-  helpStepLv3_1: { ja: "？セルに乗ると進む方向が変わる", en: "? cells change your direction", es: "Las celdas ? cambian tu dirección" },
-  helpStepLv3_2: { ja: "横から来ると縦方向へ、縦から来ると横方向へ分岐", en: "Horizontal → vertical, vertical → horizontal", es: "Horizontal → vertical, vertical → horizontal" },
-  helpStepLv3_3: { ja: "？カードで if/else ブロックを作ろう", en: "Use ? card for if/else blocks", es: "Usa tarjeta ? para bloques if/else" },
-  helpStepLv3_4: { ja: "必ず？セルを通ること！", en: "You must pass through a ? cell!", es: "¡Debes pasar por una celda ?!" },
+  helpStepLv3_1: { ja: "紫の「？」マスに乗ると、ボールが自動で動くよ。", en: "Land on a purple ? cell and the ball moves automatically.", es: "Al pisar una celda ? morada, la bola se mueve sola." },
+  helpStepLv3_2: { ja: "ボールの動きを観察してみてルールを見つけ出してみて！", en: "Watch the ball and figure out the rule!", es: "Observa la bola y descubre la regla." },
+  helpStepLv3_3: { ja: "プログラミングでは、？カードで if/else ブロックを作れるよ。", en: "In Programming, use the ? card to build if/else blocks.", es: "En Programación, usa la tarjeta ? para crear bloques if/else." },
+  helpStepLv3_4: { ja: "条件によって違う道を選ぶ——それがプログラミングの力！", en: "Choose different paths by condition — that's programming!", es: "Elige caminos según condiciones — ¡eso es programar!" },
 
   // Guide — shortcuts table
-  shortcutArrows: { ja: "↑↓←→ うごく", en: "↑↓←→ Move", es: "↑↓←→ Mover" },
+  shortcutArrows: { ja: "↑↓←→ 移動", en: "↑↓←→ Move", es: "↑↓←→ Mover" },
   shortcutSpace: { ja: "Space ジャンプ", en: "Space Jump", es: "Space Saltar" },
   shortcutP: { ja: "P プログラミング", en: "P Programming", es: "P Programar" },
-  shortcutD: { ja: "D 2D/3Dきりかえ", en: "D 2D/3D toggle", es: "D Cambiar 2D/3D" },
+  shortcutD: { ja: "D 2D/3D切替", en: "D 2D/3D toggle", es: "D Cambiar 2D/3D" },
   shortcutF: { ja: "F1-F3 レベル", en: "F1-F3 Level", es: "F1-F3 Nivel" },
   shortcutH: { ja: "H ガイド", en: "H Guide", es: "H Guía" },
-  shortcutLang: { ja: "J/E/N ことば", en: "J/E/N Language", es: "J/E/N Idioma" },
+  shortcutI: { ja: "I インフォ", en: "I Info", es: "I Info" },
+  shortcutLang: { ja: "J/E/N 言語", en: "J/E/N Language", es: "J/E/N Idioma" },
 
   // Guide — font size setting
   guideFontSize: { ja: "ガイド文字サイズ", en: "Guide font size", es: "Tamaño de fuente guía" },
@@ -157,18 +158,40 @@ const translations = {
 
   // Welcome page
   welcomeTitle: { ja: "3D Ball へようこそ！", en: "Welcome to 3D Ball!", es: "¡Bienvenido a 3D Ball!" },
-  welcomeIntro: { ja: "ボールをうごかしてプログラミングをまなぼう！\nカードをつかって「めいれい」をならべると、\nボールがじどうで動くよ。", en: "Move the ball and learn programming!\nStack cards to build commands,\nthen watch the ball move on its own.", es: "¡Mueve la bola y aprende programación!\nApila tarjetas para crear comandos\ny mira cómo la bola se mueve sola." },
+  welcomeIntro: { ja: "ボールを動かしてプログラミングを学ぼう！\nカードを使って「命令」を並べると、\nボールが自動で動くよ。", en: "Move the ball and learn programming!\nStack cards to build commands,\nthen watch the ball move on its own.", es: "¡Mueve la bola y aprende programación!\nApila tarjetas para crear comandos\ny mira cómo la bola se mueve sola." },
   welcomeLevels: { ja: "コース", en: "Courses", es: "Cursos" },
-  welcomePlayground: { ja: "じゆうにあそぶ — ボールをじゆうにうごかしてみよう", en: "Free Play — move the ball around freely", es: "Juego libre — mueve la bola libremente" },
-  welcomeLv1Desc: { ja: "Lv1: じゅんばん — めいれいをならべてゴールしよう", en: "Lv1: Sequence — line up commands to reach the goal", es: "Lv1: Secuencia — alinea comandos para llegar a la meta" },
-  welcomeLv2Desc: { ja: "Lv2: くりかえし — ×2/×3カードでくりかえしを使おう", en: "Lv2: Loops — use ×2/×3 cards to repeat commands", es: "Lv2: Bucles — usa tarjetas ×2/×3 para repetir" },
-  welcomeLv3Desc: { ja: "Lv3: 条件分岐 — ？カードで道をわけよう", en: "Lv3: Conditionals — use ? cards to split the path", es: "Lv3: Condicionales — usa tarjetas ? para dividir el camino" },
-  welcomeControls: { ja: "そうさほうほう", en: "Controls", es: "Controles" },
-  welcomeControlCards: { ja: "カードをかざしてめいれいをおくる", en: "Tap cards to send commands", es: "Acerca tarjetas para enviar comandos" },
-  welcomeControlKeys: { ja: "やじるしキーでうごく、スペースでジャンプ", en: "Arrow keys to move, Space to jump", es: "Flechas para mover, Espacio para saltar" },
-  welcomeControlProg: { ja: "プログラミングモードでめいれいをならべてRun！", en: "Programming mode: stack commands and Run!", es: "Modo programación: apila comandos y ¡Run!" },
+  welcomePlayground: { ja: "自由モード — ボールを自由に動かしてみよう", en: "Free Play — move the ball around freely", es: "Juego libre — mueve la bola libremente" },
+  welcomeLv1Desc: { ja: "レベル１（順番）— 命令を順番に並べてゴールしよう", en: "Lv1: Sequence — line up commands to reach the goal", es: "Lv1: Secuencia — alinea comandos para llegar a la meta" },
+  welcomeLv2Desc: { ja: "レベル２（繰り返し）— ×2/×3 カードで繰り返しを使おう", en: "Lv2: Loops — use ×2/×3 cards to repeat commands", es: "Lv2: Bucles — usa tarjetas ×2/×3 para repetir" },
+  welcomeLv3Desc: { ja: "レベル３（条件分岐）— ？カードで道を分けよう", en: "Lv3: Conditionals — use ? cards to split the path", es: "Lv3: Condicionales — usa tarjetas ? para dividir el camino" },
+  welcomeControls: { ja: "操作方法", en: "Controls", es: "Controles" },
+  welcomeControlCards: { ja: "カードをかざして命令を送る", en: "Tap cards to send commands", es: "Acerca tarjetas para enviar comandos" },
+  welcomeControlKeys: { ja: "矢印キーで動く、スペースキーでジャンプ", en: "Arrow keys to move, Space to jump", es: "Flechas para mover, Espacio para saltar" },
+  welcomeControlProg: { ja: "プログラミングモードで命令を並べて Run！", en: "Programming mode: stack commands and Run!", es: "Modo programación: apila comandos y ¡Run!" },
   welcomeStart: { ja: "はじめる", en: "Start", es: "Empezar" },
   shortcutW: { ja: "W ようこそ", en: "W Welcome", es: "W Bienvenida" },
+
+  // Info overlay — mode descriptions (marquee text)
+  infoPlayground: {
+    ja: "自由モード：　ボールを自由に動かしてみよう。　矢印キーで上下左右に動かせるよ。　スペースキーでジャンプ！　カードも使って同じようにボールを自由に動かしてみよう。",
+    en: "Free Play  ——  Move the ball freely!  Use arrow keys to go up, down, left, right.  Press Space to jump!  In Programming mode (P key), stack cards to make the ball move automatically.  When you're ready, try Lv1!",
+    es: "Juego libre  ——  ¡Mueve la bola libremente!  Usa las flechas para ir arriba, abajo, izquierda, derecha.  ¡Presiona Espacio para saltar!  En modo Programación (tecla P), apila tarjetas para mover la bola automáticamente.  Cuando estés listo, ¡prueba Lv1!",
+  },
+  infoLv1: {
+    ja: "レベル１（順番）：　スタートからゴールまで、ボールを動かそう。　矢印キーで１マスずつ進めるよ。　それができたらプログラミングモードで、カードを順番に並べて実行してみよう！　「お題」ボタンで目標の回数が出るよ。　めざせぴったりクリア！",
+    en: "Level 1 \"Sequence\"  ——  Move the ball from the green Start to the orange Goal!  Use arrow keys to go one step at a time.  In Programming mode (P key), line up cards in order and press Run!  The \"Challenge\" button shows the target number of moves.  Aim for a perfect clear!",
+    es: "Nivel 1 \"Secuencia\"  ——  ¡Mueve la bola del Inicio verde a la Meta naranja!  Usa las flechas para avanzar paso a paso.  En modo Programación (tecla P), alinea las tarjetas en orden y presiona Run.  El botón \"Reto\" muestra el número objetivo de movimientos.  ¡Intenta un despeje perfecto!",
+  },
+  infoLv2: {
+    ja: "レベル２（繰り返し）：　赤いブロックはぶつかると止まるよ。　ブロックをよけながらゴールをめざそう。　×2 や ×3 カードを使うと、同じ動きを繰り返せるよ。　少ないカードでクリアできるかな？",
+    en: "Level 2 \"Loops\"  ——  Red blocks are walls! You'll stop if you hit them.  Dodge obstacles and reach the goal.  Use ×2 or ×3 cards to repeat the same move.  For example, → ×3 moves right 3 times!  Can you clear it with fewer cards?",
+    es: "Nivel 2 \"Bucles\"  ——  ¡Los bloques rojos son muros! Te detienes si chocas.  Esquiva obstáculos y llega a la meta.  Usa tarjetas ×2 o ×3 para repetir el mismo movimiento.  Por ejemplo, → ×3 mueve a la derecha 3 veces.  ¿Puedes completarlo con menos tarjetas?",
+  },
+  infoLv3: {
+    ja: "レベル３（条件分岐）：　紫の「？」マスに乗ると、ボールが自動で動くよ。　ボールの動きを観察してみてルールを見つけ出してみて！　必ず「？」マスを通ってゴールしよう。　プログラミングでは、？カードで if/else ブロックを作れるよ。",
+    en: "Level 3 \"Conditionals\"  ——  Land on a purple ? cell and your direction changes based on how you arrived!  Come from the side → go vertical. Come from top/bottom → go horizontal.  You must pass through a ? cell to reach the goal.  In Programming, use the ? card to create if/else blocks.  Choosing different paths based on conditions — that's the power of programming!",
+    es: "Nivel 3 \"Condicionales\"  ——  ¡Pisa una celda ? morada y tu dirección cambia según de dónde vengas!  Vienes del lado → vas vertical. Vienes de arriba/abajo → vas horizontal.  Debes pasar por una celda ? para llegar a la meta.  En Programación, usa la tarjeta ? para crear bloques if/else.  Elegir diferentes caminos según condiciones — ¡ese es el poder de la programación!",
+  },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

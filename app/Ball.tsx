@@ -20,7 +20,7 @@ import { useLevel } from "@/lib/useLevel";
 import { useProgramRunner } from "@/lib/useProgramRunner";
 import { gridCenter, LEVELS } from "@/lib/levels";
 import { useGuide } from "@/lib/useGuide";
-import { HintBubble, HelpButton, HelpPanel, WelcomePanel, GuideFontSize } from "@/app/components/Guide";
+import { HelpButton, HelpPanel, WelcomePanel, InfoButton, InfoOverlay, GuideFontSize } from "@/app/components/Guide";
 
 export default function Ball() {
   const { locale, setLocale, t, td } = useI18n();
@@ -71,6 +71,9 @@ export default function Ball() {
       setShowWelcome(true);
     }
   }, []);
+
+  // Info overlay
+  const [showInfo, setShowInfo] = useState(false);
 
   // NTAG write
   const [showNtagModal, setShowNtagModal] = useState(false);
@@ -167,6 +170,7 @@ export default function Ball() {
       branchCells: level.branchCells,
       isPassthrough: level.active ? level.isPassthrough : undefined,
       reverseBranch: options?.reverseBranch,
+      onJump: level.active ? level.addMove : undefined,
     });
 
     if (burstFromBranch) {
@@ -364,6 +368,14 @@ export default function Ball() {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      // Info overlay: intercept all keys while shown
+      if (showInfo) {
+        e.preventDefault();
+        if (e.key === "Escape" || e.key === "i" || e.key === "-") {
+          setShowInfo(false);
+        }
+        return;
+      }
       // P → toggle programming mode
       if ((e.key === "p" || e.key === "/") && !e.metaKey && !e.ctrlKey && !progRunning) {
         e.preventDefault();
@@ -373,7 +385,7 @@ export default function Ball() {
           resetProgIndex();
           setProgRunning(false);
           setPBlockEditing("none");
-        } else if (nfcConnected) {
+        } else if (nfcConnected && level.active) {
           setProgMode(true);
         }
         return;
@@ -382,6 +394,12 @@ export default function Ball() {
       if ((e.key === "h" || e.key === "Home") && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         guide.toggleHelp();
+        return;
+      }
+      // I → toggle info overlay
+      if (e.key === "i" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setShowInfo((v) => !v);
         return;
       }
       // W → toggle welcome
@@ -429,6 +447,13 @@ export default function Ball() {
       // Escape / - → exit level mode
       if ((e.key === "Escape" || e.key === "-") && level.active) {
         e.preventDefault();
+        if (progMode) {
+          setProgMode(false);
+          setProgram([]);
+          resetProgIndex();
+          setProgRunning(false);
+          setPBlockEditing("none");
+        }
         const center = level.deactivate();
         setGridPos(center);
         return;
@@ -469,19 +494,17 @@ export default function Ball() {
       }
       // Programming mode shortcuts
       if (progMode) {
-        // Enter → Run program
-        if (e.key === "Enter" && !e.shiftKey && !progRunning && program.length > 0) {
+        // Swallow Enter so focused buttons don't re-trigger via browser default
+        if (e.key === "Enter") {
           e.preventDefault();
-          runProgram();
+          if (!progRunning && program.length > 0) {
+            if (e.shiftKey) runProgram({ reverseBranch: true });
+            else runProgram();
+          }
           return;
         }
-        // Shift+Enter → Run with reversed branches (hidden mode) / Insert → New
-        if (e.key === "Enter" && e.shiftKey && !progRunning && program.length > 0) {
-          e.preventDefault();
-          runProgram({ reverseBranch: true });
-          return;
-        }
-        if ((e.key === "Enter" && e.shiftKey && program.length === 0 || e.key === "Insert") && !progRunning) {
+        // Backspace / Insert → New (clear program & regenerate)
+        if ((e.key === "Backspace" || e.key === "Insert") && !progRunning) {
           e.preventDefault();
           setProgram([]);
           resetProgIndex();
@@ -492,12 +515,6 @@ export default function Ball() {
           } else {
             setGridPos(gridCenter(level.gridSize));
           }
-          return;
-        }
-        // Backspace → delete last instruction
-        if (e.key === "Backspace" && !progRunning && program.length > 0 && pBlockEditing === "none") {
-          e.preventDefault();
-          setProgram((prev) => prev.slice(0, -1));
           return;
         }
         return;
@@ -531,7 +548,7 @@ export default function Ball() {
         return next;
       });
     },
-    [isAnimating, jumping, progMode, progRunning, program, runProgram, level, pBlockEditing, guide.toggleHelp]
+    [isAnimating, jumping, progMode, progRunning, program, runProgram, level, pBlockEditing, guide.toggleHelp, showInfo]
   );
 
   useEffect(() => {
@@ -558,7 +575,7 @@ export default function Ball() {
       {/* Programming panel — left */}
       <div className={`absolute top-4 left-4 ${progMode ? "z-20 bottom-12 flex flex-col" : "z-10"}`}>
         {/* Panel header */}
-        {!progMode ? (
+        {!progMode ? (level.active && (
           <button
             onClick={() => nfcConnected && setProgMode(true)}
             className={`rounded-lg bg-white/95 p-2 shadow-md backdrop-blur border border-gray-200 transition ${nfcConnected ? "hover:bg-white text-black/40 hover:text-black/70" : "text-black/15 cursor-not-allowed"}`}
@@ -570,7 +587,7 @@ export default function Ball() {
               <polyline points="8 6 2 12 8 18" />
             </svg>
           </button>
-        ) : (
+        )) : (
           <div className="w-64 flex items-center bg-white/95 rounded-lg shadow-md backdrop-blur border border-gray-200 overflow-hidden">
             <button
               onClick={() => {
@@ -597,6 +614,7 @@ export default function Ball() {
           <div className="w-64 mt-1 flex flex-col flex-1 min-h-0 bg-white/95 rounded-lg shadow-md backdrop-blur border border-gray-200 overflow-hidden">
             {/* New button */}
             <button
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 setProgram([]);
                 resetProgIndex();
@@ -612,7 +630,7 @@ export default function Ball() {
               className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-white bg-gray-600 hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               New
-              <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono text-white/60">&#8679;Enter</kbd>
+              <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono text-white/60">BS</kbd>
             </button>
 
             {/* Program steps */}
@@ -822,6 +840,7 @@ export default function Ball() {
 
             {/* Run button */}
             <button
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => runProgram()}
               disabled={progRunning || program.length === 0}
               className={`flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-white transition disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -890,10 +909,10 @@ export default function Ball() {
                   const pos = level.generate();
                   setGridPos(pos);
                 }}
-                className="flex items-center gap-1.5 rounded px-3 py-1 text-xs font-bold bg-yellow-400/80 text-black hover:bg-yellow-400 transition backdrop-blur"
+                className="flex items-center gap-2 rounded-lg px-6 py-3 text-xl font-bold bg-yellow-400/90 text-black hover:bg-yellow-400 transition backdrop-blur shadow-lg animate-pulse"
               >
                 {t("nextChallenge")}
-                <kbd className="rounded bg-black/10 px-1.5 py-0.5 text-[10px] font-mono text-black/50">Enter</kbd>
+                <kbd className="rounded bg-black/15 px-2 py-0.5 text-sm font-mono text-black/60">Enter</kbd>
               </button>
             )}
           </div>
@@ -1068,6 +1087,7 @@ export default function Ball() {
           ))}
         </div>
         <div className="flex items-center gap-2 text-xs font-medium text-white/80">
+          <InfoButton onClick={() => setShowInfo(true)} />
           <HelpButton onClick={guide.toggleHelp} />
           <span
             className={`inline-block w-2 h-2 rounded-full ${
@@ -1188,14 +1208,15 @@ export default function Ball() {
         />
       )}
 
-      {/* Guide hint bubble */}
-      {guide.activeHint && (
-        <HintBubble hint={guide.activeHint} onDismiss={guide.dismissHint} fontSize={guideFontSize} />
-      )}
 
       {/* Guide help panel */}
       {guide.helpOpen && (
         <HelpPanel contentKey={guide.helpContentKey} onClose={guide.closeHelp} fontSize={guideFontSize} />
+      )}
+
+      {/* Info overlay */}
+      {showInfo && (
+        <InfoOverlay levelId={level.levelId} onClose={() => setShowInfo(false)} />
       )}
 
       {/* NFC flash */}

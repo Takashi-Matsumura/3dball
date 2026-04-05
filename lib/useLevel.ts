@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import {
   LevelConfig,
   LEVELS,
@@ -43,8 +43,10 @@ export interface LevelState {
   onFreeMove: (pos: GridPos, isAnimating: boolean) => "success" | "burst" | null;
   /** Count a move (call when gridPos changes) */
   countMove: (pos: GridPos) => void;
-  /** Check program run result */
-  checkRunResult: (finalPos: GridPos, passedGoal: boolean, runBranchUsed?: boolean) => "success" | "burst" | "none";
+  /** Manually increment move counter (e.g. for JUMP which doesn't change position) */
+  addMove: () => void;
+  /** Check program run result. `extraActions` is added to tracked moves (e.g. JUMPs not counted via position). */
+  checkRunResult: (finalPos: GridPos, passedGoal: boolean, runBranchUsed?: boolean, extraActions?: number) => "success" | "burst" | "none";
   /** Check if intermediate step passes goal */
   isPassthrough: (pos: GridPos, stepIndex: number, totalSteps: number) => boolean;
   /** Call after burst animation completes in free-move mode */
@@ -74,6 +76,8 @@ export function useLevel(): LevelState {
 
   const movesRef = useRef(0);
   const prevPosRef = useRef<GridPos>({ col: 0, row: 0 });
+  const clearedRef = useRef(false);
+  useEffect(() => { clearedRef.current = cleared; }, [cleared]);
 
   const active = levelId !== null;
   const gridSize = config?.gridSize ?? 3;
@@ -143,6 +147,7 @@ export function useLevel(): LevelState {
 
   const resetForRun = useCallback(() => {
     setCleared(false);
+    clearedRef.current = false;
     setMoves(0);
     setBranchUsed(false);
     movesRef.current = 0;
@@ -170,16 +175,24 @@ export function useLevel(): LevelState {
     prevPosRef.current = pos;
   }, [cleared]);
 
+  const addMove = useCallback(() => {
+    if (clearedRef.current) return;
+    const next = movesRef.current + 1;
+    movesRef.current = next;
+    setMoves(next);
+  }, []);
+
   const onFreeMove = useCallback((pos: GridPos, isAnimating: boolean): "success" | "burst" | null => {
     if (!config || cleared || bursting || isAnimating) return null;
     return checkMoveResult(config, pos, goal, movesRef.current, challenge, branchUsed);
   }, [config, goal, cleared, bursting, challenge, branchUsed]);
 
-  const checkRunResult = useCallback((finalPos: GridPos, passedGoal: boolean, runBranchUsed: boolean = false): "success" | "burst" | "none" => {
+  const checkRunResult = useCallback((finalPos: GridPos, passedGoal: boolean, runBranchUsed: boolean = false, extraActions: number = 0): "success" | "burst" | "none" => {
     if (!config) return "none";
-    if (checkProgramResult(config, finalPos, goal, passedGoal, runBranchUsed)) return "success";
+    const totalMoves = movesRef.current + extraActions;
+    if (checkProgramResult(config, finalPos, goal, passedGoal, runBranchUsed, totalMoves, challenge)) return "success";
     return "burst";
-  }, [config, goal]);
+  }, [config, goal, challenge]);
 
   const isPassthrough = useCallback((pos: GridPos, stepIndex: number, totalSteps: number): boolean => {
     if (!config) return false;
@@ -231,6 +244,7 @@ export function useLevel(): LevelState {
     resetForRun,
     onFreeMove,
     countMove,
+    addMove,
     checkRunResult,
     isPassthrough,
     onBurstReset,
