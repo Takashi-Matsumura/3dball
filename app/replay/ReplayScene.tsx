@@ -54,7 +54,7 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
     if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [progIndex]);
 
-  const runProgram = useCallback(async () => {
+  const runProgram = useCallback(async (reverseBranch: boolean = false) => {
     setFinished(false);
     setLevelCleared(false);
 
@@ -70,6 +70,7 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
       obstacles,
       branchCells,
       isPassthrough,
+      reverseBranch,
     });
 
     setFinished(true);
@@ -82,10 +83,12 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
 
   // Auto-play on mount
   useEffect(() => {
-    const timer = setTimeout(runProgram, 500);
+    const timer = setTimeout(() => runProgram(false), 500);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const hasBranch = steps.includes("BRANCH");
 
   return (
     <div className="relative h-screen w-screen">
@@ -151,14 +154,26 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
         </div>
 
         {/* Replay button — centered */}
-        <div className="flex-1 flex justify-center">
+        <div className="flex-1 flex justify-center gap-2">
           {finished && (
-            <button
-              onClick={runProgram}
-              className="rounded-xl bg-white/95 px-6 py-3 text-base font-bold text-black shadow-xl backdrop-blur border border-gray-200 transition hover:bg-white hover:scale-105"
-            >
-              Replay
-            </button>
+            <>
+              <button
+                onClick={() => runProgram(false)}
+                className="rounded-xl bg-white/95 px-6 py-3 text-base font-bold text-black shadow-xl backdrop-blur border border-gray-200 transition hover:bg-white hover:scale-105"
+              >
+                Replay
+              </button>
+              {hasBranch && (
+                <button
+                  onClick={() => runProgram(true)}
+                  title="Reverse branch"
+                  className="rounded-xl bg-purple-500/95 px-6 py-3 text-base font-bold text-white shadow-xl backdrop-blur border border-purple-400 transition hover:bg-purple-500 hover:scale-105 flex items-center gap-2"
+                >
+                  <span>?</span>
+                  <span>⇄</span>
+                </button>
+              )}
+            </>
           )}
         </div>
 

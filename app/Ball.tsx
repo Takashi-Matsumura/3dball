@@ -525,6 +525,14 @@ export default function Ball() {
         if (!jumping) {
           setJumping(true);
           playJump();
+          if (level.active && !level.cleared) {
+            level.addMove();
+            const result = level.onFreeMove(gridPos, false);
+            if (result === "burst") {
+              level.setBursting(true);
+              playBurst();
+            }
+          }
         }
         return;
       }
@@ -749,7 +757,13 @@ export default function Ball() {
 
                           {/* else block */}
                           <div
-                            onClick={() => !progRunning && setPBlockEditing("else")}
+                            onClick={() => {
+                              if (progRunning) return;
+                              if (!program.includes("PIPE")) {
+                                setProgram((prev) => [...prev, "PIPE"]);
+                              }
+                              setPBlockEditing("else");
+                            }}
                             className={`rounded px-2 py-1 text-xs font-bold ${
                               elseActive ? "bg-yellow-200 ring-2 ring-yellow-400"
                               : pBlockEditing === "else" ? "bg-purple-100 ring-2 ring-purple-400" : "bg-gray-50 hover:bg-purple-50"
@@ -794,25 +808,6 @@ export default function Ball() {
                           {/* P-block control buttons */}
                           {!progRunning && pBlockEditing !== "none" && (
                             <div className="flex gap-1 mt-1">
-                              {pBlockEditing === "if" && !program.includes("PIPE") && (
-                                <button
-                                  onClick={() => {
-                                    setProgram((prev) => [...prev, "PIPE"]);
-                                    setPBlockEditing("else");
-                                  }}
-                                  className="flex-1 rounded px-2 py-1 text-[10px] font-bold bg-purple-200 text-purple-700 hover:bg-purple-300 transition"
-                                >
-                                  {t("tapElse")}
-                                </button>
-                              )}
-                              {pBlockEditing === "if" && program.includes("PIPE") && (
-                                <button
-                                  onClick={() => setPBlockEditing("else")}
-                                  className="flex-1 rounded px-2 py-1 text-[10px] font-bold bg-purple-200 text-purple-700 hover:bg-purple-300 transition"
-                                >
-                                  {t("tapElse")}
-                                </button>
-                              )}
                               <button
                                 onClick={() => {
                                   setProgram((prev) => {
