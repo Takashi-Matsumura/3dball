@@ -9,6 +9,7 @@ import {
   PatternConfig,
   NFC_DIRECTIONS,
   NFC_ICONS,
+  MAX_LOOP_REPEAT,
   moveGrid,
   encodeProgram,
   groupProgramForDisplay,
@@ -98,6 +99,22 @@ export default function Ball() {
     const el = progStepsRef.current.children[gi] as HTMLElement | undefined;
     if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [progIndex, displaySteps]);
+
+  // Auto-scroll to the newest card when the program grows (not during execution)
+  const prevProgLenRef = useRef(0);
+  useEffect(() => {
+    if (progRunning) {
+      prevProgLenRef.current = program.length;
+      return;
+    }
+    if (program.length > prevProgLenRef.current && progStepsRef.current) {
+      progStepsRef.current.scrollTo({
+        top: progStepsRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+    prevProgLenRef.current = program.length;
+  }, [program.length, progRunning]);
 
   // Keep ref in sync for NFC polling callback
   useEffect(() => { isAnimatingRef.current = isAnimating; }, [isAnimating]);
@@ -282,6 +299,22 @@ export default function Ball() {
               // X2/X3: must have preceding direction
               if ((cardId === "X2" || cardId === "X3") && !prev.some((s) => s !== "X2" && s !== "X3" && s !== "BRANCH" && s !== "PIPE" && s !== "SLASH")) {
                 return prev;
+              }
+              // X2/X3: enforce MAX_LOOP_REPEAT cap per direction
+              if (cardId === "X2" || cardId === "X3") {
+                const n = cardId === "X2" ? 2 : 3;
+                let tailTotal = 0;
+                let tailCount = 0;
+                for (let i = prev.length - 1; i >= 0; i--) {
+                  if (prev[i] === "X2") { tailTotal += 2; tailCount++; }
+                  else if (prev[i] === "X3") { tailTotal += 3; tailCount++; }
+                  else break;
+                }
+                const newTotal = tailCount === 0 ? n : tailTotal + n;
+                if (newTotal > MAX_LOOP_REPEAT) {
+                  playBump();
+                  return prev;
+                }
               }
               // BRANCH card: only allowed in Lv3 (levels with branchCount)
               if (cardId === "BRANCH") {
@@ -640,6 +673,10 @@ export default function Ball() {
               disabled={progRunning}
               className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-white bg-gray-600 hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
               New
               <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono text-white/60">Space</kbd>
             </button>
@@ -670,7 +707,7 @@ export default function Ball() {
                           setDragIndex(null);
                           setDragOverIndex(null);
                         }}
-                        className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                        className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
                           isHighlighted
                             ? "bg-yellow-300 scale-105"
                             : dragOverIndex === gi && dragIndex !== null && dragIndex !== gi
@@ -701,7 +738,8 @@ export default function Ball() {
                               setProgram(displayStepsToFlat(groups));
                               setPBlockEditing("none");
                             }}
-                            className="ml-auto text-gray-400 hover:text-red-500 text-xs"
+                            aria-label="削除"
+                            className="ml-auto flex items-center justify-center w-9 h-9 rounded-lg text-gray-400 hover:bg-red-100 hover:text-red-500 active:bg-red-200 text-lg font-bold transition"
                           >
                             ✕
                           </button>
@@ -744,7 +782,8 @@ export default function Ball() {
                                         setProgram(displayStepsToFlat(groups));
                                       }
                                     }}
-                                    className="ml-auto text-gray-400 hover:text-red-500 text-[10px]"
+                                    aria-label="削除"
+                                    className="ml-auto flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:bg-red-100 hover:text-red-500 active:bg-red-200 text-base font-bold transition"
                                   >
                                     ✕
                                   </button>
@@ -794,7 +833,8 @@ export default function Ball() {
                                         setProgram(displayStepsToFlat(groups));
                                       }
                                     }}
-                                    className="ml-auto text-gray-400 hover:text-red-500 text-[10px]"
+                                    aria-label="削除"
+                                    className="ml-auto flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:bg-red-100 hover:text-red-500 active:bg-red-200 text-base font-bold transition"
                                   >
                                     ✕
                                   </button>
@@ -847,8 +887,22 @@ export default function Ball() {
                   : "bg-green-600 hover:bg-green-700"
               }`}
             >
-              {progRunning ? t("running") : t("run")}
-              {!progRunning && <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono text-white/60">Enter</kbd>}
+              {progRunning ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 animate-spin">
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                  {t("running")}
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                    <polygon points="6 4 20 12 6 20 6 4" />
+                  </svg>
+                  {t("run")}
+                  <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono text-white/60">Enter</kbd>
+                </>
+              )}
             </button>
 
           </div>

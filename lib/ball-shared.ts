@@ -73,6 +73,9 @@ export const CAMERA_2D = {
 };
 
 export const NFC_DIRECTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "JUMP", "X2", "X3", "BRANCH"] as const;
+
+/** Max total repeat count per direction when chaining X2/X3 loop cards. */
+export const MAX_LOOP_REPEAT = 9;
 export const NFC_ICONS: Record<string, string> = { UP: "⬆", DOWN: "⬇", LEFT: "⬅", RIGHT: "➡", JUMP: "⤴", X2: "×2", X3: "×3", BRANCH: "❓", PIPE: "|", SLASH: "/" };
 
 /** Check if a direction is horizontal (LEFT or RIGHT) */
