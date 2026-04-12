@@ -121,15 +121,16 @@ const translations = {
   helpConceptLv1: { ja: "逐次処理 — 命令を順番にひとつずつ実行する", en: "Sequential — run commands one by one", es: "Secuencial — ejecutar uno por uno" },
   helpStepLv1_1: { ja: "矢印キーで１マスずつ進めるよ。", en: "Use arrow keys to move one step at a time", es: "Usa las flechas para mover paso a paso" },
   helpStepLv1_2: { ja: "それができたらプログラミングモードで、カードを順番に並べて実行してみよう！", en: "Then switch to Programming mode and line up cards in order!", es: "Luego, en modo Programación, alinea las tarjetas en orden." },
-  helpStepLv1_3: { ja: "「お題」ボタンで目標の回数が出るよ。", en: "The Challenge button shows the target move count.", es: "El botón Reto muestra el número objetivo de movimientos." },
-  helpStepLv1_4: { ja: "めざせぴったりクリア！", en: "Aim for a perfect clear!", es: "¡Intenta un despeje perfecto!" },
+  helpStepLv1_3: { ja: "「お題」ボタン (Tab キー) で目標の回数が出るよ。黄色いカードで「お題 3 回」のように表示されて、下の丸印で進み具合がわかる。", en: "Tap Challenge (or Tab) — a yellow card shows the target move count, and the dots below track your progress.", es: "El botón Reto (o Tab) muestra el número objetivo; los puntos indican tu progreso." },
+  helpStepLv1_4: { ja: "お題カードの「更新」で別のお題、「やめる」でお題なしに戻せるよ。", en: "Inside the card: Change picks a new target, Clear returns to no challenge.", es: "En la tarjeta: Cambiar elige otro objetivo, Quitar vuelve a sin reto." },
+  helpStepLv1_5: { ja: "めざせぴったりクリア！", en: "Aim for a perfect clear!", es: "¡Intenta un despeje perfecto!" },
 
   // Guide — Lv2
   helpTitleLv2: { ja: "レベル２（繰り返し）", en: "Lv2: Use loops to reach goal", es: "Lv2: Usa bucles para llegar" },
   helpObjLv2: { ja: "ブロックをよけながらゴールをめざそう。", en: "Dodge obstacles and reach the goal!", es: "¡Esquiva obstáculos y llega a la meta!" },
   helpConceptLv2: { ja: "繰り返し処理 — 同じ命令を何度も実行する", en: "Loops — repeat the same command", es: "Bucles — repetir el mismo comando" },
   helpStepLv2_1: { ja: "赤いブロックはぶつかると止まるよ。", en: "Red blocks stop you when you hit them.", es: "Los bloques rojos te detienen al chocar." },
-  helpStepLv2_2: { ja: "×2 や ×3 カードを使うと、同じ動きを繰り返せるよ。", en: "Use ×2 / ×3 cards to repeat the same move.", es: "Usa tarjetas ×2 / ×3 para repetir el mismo movimiento." },
+  helpStepLv2_2: { ja: "×2 や ×3 カードを使うと、同じ動きを繰り返せるよ。1 方向で合計 9 回までくり返せる。", en: "Use ×2 / ×3 cards to repeat the same move — up to 9 times per direction.", es: "Usa tarjetas ×2 / ×3 para repetir el mismo movimiento (hasta 9 veces por dirección)." },
   helpStepLv2_3: { ja: "たとえば「→ ×3」で右に３マス進む！", en: "e.g. → ×3 moves right 3 times!", es: "Por ejemplo: → ×3 mueve a la derecha 3 veces." },
   helpStepLv2_4: { ja: "少ないカードでクリアできるかな？", en: "Can you clear with fewer cards?", es: "¿Puedes completar con menos tarjetas?" },
 
