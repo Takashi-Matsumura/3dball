@@ -394,6 +394,15 @@ export default function Ball() {
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
+  /** Close the programming panel and clear its state. Used when switching levels. */
+  const closeProgMode = useCallback(() => {
+    setProgMode(false);
+    setProgram([]);
+    resetProgIndex();
+    setProgRunning(false);
+    setPBlockEditing("none");
+  }, [resetProgIndex, setPBlockEditing]);
+
   const handleBurstDone = useCallback(() => {
     // Programming mode: resolve the awaited promise
     if (burstDoneResolveRef.current) {
@@ -469,6 +478,7 @@ export default function Ball() {
         if (idx >= 0 && idx < levelIds.length) {
           e.preventDefault();
           const id = levelIds[idx];
+          if (progMode) closeProgMode();
           if (level.levelId === id) {
             const center = level.deactivate();
             setGridPos(center);
@@ -489,13 +499,7 @@ export default function Ball() {
         lastEscAtRef.current = now;
 
         if (level.active) {
-          if (progMode) {
-            setProgMode(false);
-            setProgram([]);
-            resetProgIndex();
-            setProgRunning(false);
-            setPBlockEditing("none");
-          }
+          if (progMode) closeProgMode();
           const center = level.deactivate();
           setGridPos(center);
           return;
@@ -513,6 +517,7 @@ export default function Ball() {
         e.preventDefault();
         const currentIdx = level.levelId ? levelIds.indexOf(level.levelId) : -1;
         const nextIdx = currentIdx + 1;
+        if (progMode) closeProgMode();
         if (nextIdx >= levelIds.length) {
           const center = level.deactivate();
           setGridPos(center);
@@ -606,7 +611,7 @@ export default function Ball() {
         return next;
       });
     },
-    [isAnimating, jumping, progMode, progRunning, program, runProgram, level, pBlockEditing, showInfo, cancelDemo, startDemo, demoActive]
+    [isAnimating, jumping, progMode, progRunning, program, runProgram, level, pBlockEditing, showInfo, cancelDemo, startDemo, demoActive, closeProgMode]
   );
 
   useEffect(() => {
