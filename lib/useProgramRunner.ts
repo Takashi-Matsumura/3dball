@@ -32,10 +32,12 @@ export function useProgramRunner() {
   const [gridPos, setGridPos] = useState<GridPos>({ col: 1, row: 1 });
   const [isAnimating, setIsAnimating] = useState(false);
   const [jumping, setJumping] = useState(false);
+  const [celebrating, setCelebrating] = useState(false);
   const [progIndex, setProgIndex] = useState(-1);
 
   const animDoneResolveRef = useRef<(() => void) | null>(null);
   const jumpDoneResolveRef = useRef<(() => void) | null>(null);
+  const celebrateDoneResolveRef = useRef<(() => void) | null>(null);
 
   const handleAnimDone = useCallback(() => {
     setIsAnimating(false);
@@ -50,6 +52,14 @@ export function useProgramRunner() {
     if (jumpDoneResolveRef.current) {
       jumpDoneResolveRef.current();
       jumpDoneResolveRef.current = null;
+    }
+  }, []);
+
+  const handleCelebrateDone = useCallback(() => {
+    setCelebrating(false);
+    if (celebrateDoneResolveRef.current) {
+      celebrateDoneResolveRef.current();
+      celebrateDoneResolveRef.current = null;
     }
   }, []);
 
@@ -216,7 +226,16 @@ export function useProgramRunner() {
       } else {
         const next = moveGrid(currentPos, token, gridSize, obstacles);
         if (next) {
-          if (isPassthrough?.(next, i, expanded.length)) passedGoalRef.value = true;
+          // Only flag passthrough if there are remaining tokens that can still
+          // move the ball away from this cell. Trailing JUMP/PIPE/SLASH don't
+          // change position, so reaching the goal just before them is the
+          // final destination, not a passthrough.
+          const hasFutureMove = expanded
+            .slice(i + 1)
+            .some((t) => ["UP", "DOWN", "LEFT", "RIGHT", "BRANCH"].includes(t));
+          if (hasFutureMove && isPassthrough?.(next, i, expanded.length)) {
+            passedGoalRef.value = true;
+          }
           currentPos = next;
           await waitMove(next);
 
@@ -247,6 +266,12 @@ export function useProgramRunner() {
     await waitJump();
   }, []);
 
+  /** Trigger the goal-reached celebration animation (big leap + spin + pulse) */
+  const triggerCelebrate = useCallback(async () => {
+    setCelebrating(true);
+    await new Promise<void>((resolve) => { celebrateDoneResolveRef.current = resolve; });
+  }, []);
+
   /** Reset highlight index (e.g. when closing programming panel) */
   const resetProgIndex = useCallback(() => setProgIndex(-1), []);
 
@@ -257,11 +282,15 @@ export function useProgramRunner() {
     setIsAnimating,
     jumping,
     setJumping,
+    celebrating,
+    setCelebrating,
     progIndex,
     resetProgIndex,
     handleAnimDone,
     handleJumpDone,
+    handleCelebrateDone,
     runSteps,
     triggerJump,
+    triggerCelebrate,
   };
 }

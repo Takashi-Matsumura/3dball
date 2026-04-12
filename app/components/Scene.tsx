@@ -315,9 +315,11 @@ export function Sphere({
   gridRow,
   jumping,
   bursting,
+  celebrating,
   onAnimDone,
   onJumpDone,
   onBurstDone,
+  onCelebrateDone,
   patternConfig,
   gridSize = 3,
 }: {
@@ -325,9 +327,11 @@ export function Sphere({
   gridRow: number;
   jumping?: boolean;
   bursting?: boolean;
+  celebrating?: boolean;
   onAnimDone: () => void;
   onJumpDone?: () => void;
   onBurstDone?: () => void;
+  onCelebrateDone?: () => void;
   patternConfig: PatternConfig;
   gridSize?: number;
 }) {
@@ -337,6 +341,7 @@ export function Sphere({
   const animRef = useRef<AnimState | null>(null);
   const jumpRef = useRef<{ bounce: number; progress: number } | null>(null);
   const burstRef = useRef<{ progress: number; particles: BurstParticle[] } | null>(null);
+  const celebrateRef = useRef<{ progress: number } | null>(null);
   const prevPos = useRef({ col: gridCol, row: gridRow });
   const cumulativeRotation = useRef(new THREE.Quaternion());
   const gridOffset = (gridSize - 1) / 2;
@@ -348,6 +353,10 @@ export function Sphere({
   const BURST_EXPAND_DURATION = 0.1;
   const BURST_SCATTER_DURATION = 0.6;
   const BURST_TOTAL = BURST_EXPAND_DURATION + BURST_SCATTER_DURATION;
+  const CELEBRATE_DURATION = 1.2;       // seconds
+  const CELEBRATE_HEIGHT = BALL_RADIUS * 2.5;
+  const CELEBRATE_SPINS = 1;            // full 360° Y-axis rotations
+  const CELEBRATE_PULSE = 0.2;          // max additional scale
 
   // Start jump animation
   useEffect(() => {
@@ -355,6 +364,13 @@ export function Sphere({
       jumpRef.current = { bounce: 0, progress: 0 };
     }
   }, [jumping]);
+
+  // Start celebrate animation (goal reached)
+  useEffect(() => {
+    if (celebrating && !celebrateRef.current) {
+      celebrateRef.current = { progress: 0 };
+    }
+  }, [celebrating]);
 
   // Start burst animation
   useEffect(() => {
@@ -483,11 +499,49 @@ export function Sphere({
       }
     }
 
+    // Celebrate animation (goal reached): big leap + Y-axis spin + pulse
+    const celebrate = celebrateRef.current;
+    let celebrateY = 0;
+    let celebrateSpin = 0;
+    let celebrateScale = 1;
+    let celebrateActive = false;
+    if (celebrate) {
+      celebrate.progress += delta / CELEBRATE_DURATION;
+      const ct = Math.min(celebrate.progress, 1);
+      celebrateY = CELEBRATE_HEIGHT * 4 * ct * (1 - ct);            // parabolic arc
+      celebrateSpin = ct * CELEBRATE_SPINS * Math.PI * 2;           // full rotations
+      celebrateScale = 1 + CELEBRATE_PULSE * Math.sin(ct * Math.PI); // pulse
+      celebrateActive = true;
+      if (ct >= 1) {
+        celebrateRef.current = null;
+        celebrateY = 0;
+        celebrateSpin = 0;
+        celebrateScale = 1;
+        celebrateActive = false;
+        onCelebrateDone?.();
+      }
+    }
+
+    // Apply celebrate spin + scale on innerRef (overrides tumble during celebrate)
+    if (celebrateActive) {
+      innerRef.current.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), celebrateSpin);
+      innerRef.current.scale.setScalar(celebrateScale);
+    } else if (!burstRef.current) {
+      // Restore scale after celebrate ends (unless burst owns it)
+      innerRef.current.scale.setScalar(1);
+    }
+
     // Move animation
     const anim = animRef.current;
     if (!anim) {
-      // Update Y for jump even when not moving
-      groupRef.current.position.y = BALL_RADIUS + jumpY;
+      // Update Y for jump / celebrate even when not moving
+      groupRef.current.position.y = BALL_RADIUS + jumpY + celebrateY;
+      if (!celebrateActive) {
+        // Restore tumble rotation when idle (celebrate overrides, burst doesn't touch rotation)
+        if (!burstRef.current) {
+          innerRef.current.quaternion.copy(cumulativeRotation.current);
+        }
+      }
       return;
     }
 
@@ -497,7 +551,7 @@ export function Sphere({
 
     const x = anim.fromX + (anim.toX - anim.fromX) * eased;
     const z = anim.fromZ + (anim.toZ - anim.fromZ) * eased;
-    groupRef.current.position.set(x, BALL_RADIUS + jumpY, z);
+    groupRef.current.position.set(x, BALL_RADIUS + jumpY + celebrateY, z);
 
     const totalDist = Math.sqrt(
       (anim.toX - anim.fromX) ** 2 + (anim.toZ - anim.fromZ) ** 2

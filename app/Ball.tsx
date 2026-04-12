@@ -26,7 +26,7 @@ export default function Ball() {
   const { locale, setLocale, t, td } = useI18n();
   const level = useLevel();
   const runner = useProgramRunner();
-  const { gridPos, setGridPos, isAnimating, setIsAnimating, jumping, setJumping, progIndex, resetProgIndex, handleAnimDone, handleJumpDone } = runner;
+  const { gridPos, setGridPos, isAnimating, setIsAnimating, jumping, setJumping, celebrating, progIndex, resetProgIndex, handleAnimDone, handleJumpDone, handleCelebrateDone } = runner;
   const [is2D, setIs2D] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [patternConfig, setPatternConfig] = useState<PatternConfig>({
@@ -153,8 +153,7 @@ export default function Ball() {
     if (result === "success") {
       level.setCleared(true);
       playSuccess();
-      setJumping(true);
-      playJump();
+      runner.triggerCelebrate();
     } else if (result === "burst") {
       level.setBursting(true);
       playBurst();
@@ -191,7 +190,7 @@ export default function Ball() {
       if (result === "success") {
         level.setCleared(true);
         playSuccess();
-        await runner.triggerJump();
+        await runner.triggerCelebrate();
       } else {
         level.setBursting(true);
         playBurst();
@@ -1215,9 +1214,11 @@ export default function Ball() {
           gridRow={gridPos.row}
           jumping={jumping}
           bursting={level.bursting}
+          celebrating={celebrating}
           onAnimDone={handleAnimDone}
           onJumpDone={handleJumpDone}
           onBurstDone={handleBurstDone}
+          onCelebrateDone={handleCelebrateDone}
           patternConfig={patternConfig}
           gridSize={level.gridSize}
         />
