@@ -111,6 +111,7 @@ const translations = {
   helpStepPlayground1: { ja: "矢印キーで上下左右に動かせるよ。", en: "Use arrow keys or cards to move", es: "Usa flechas o tarjetas para mover" },
   helpStepPlayground2: { ja: "スペースキーでジャンプ！", en: "Press Space to jump!", es: "¡Presiona Espacio para saltar!" },
   helpStepPlayground3: { ja: "カードも使って同じようにボールを自由に動かしてみよう。", en: "Try moving the ball with cards too!", es: "¡Prueba mover la bola con tarjetas también!" },
+  helpStepPlayground4: { ja: "Esc キーを 2 回押すと、ボールが自動で動くデモが始まるよ。もう一度 Esc を押すと元に戻るよ。", en: "Press Esc twice to start an auto-demo where the ball moves on its own. Press Esc once to stop it.", es: "Pulsa Esc dos veces para iniciar una demo automática; una pulsación para detenerla." },
 
   // Guide — Lv1
   helpTitleLv1: { ja: "レベル１（順番）", en: "Lv1: Move step by step", es: "Lv1: Mueve paso a paso" },
@@ -146,6 +147,7 @@ const translations = {
   shortcutD: { ja: "D 2D/3D切替", en: "D 2D/3D toggle", es: "D Cambiar 2D/3D" },
   shortcutF: { ja: "F1-F3 レベル", en: "F1-F3 Level", es: "F1-F3 Nivel" },
   shortcutI: { ja: "I インフォ", en: "I Info", es: "I Info" },
+  shortcutEsc: { ja: "Esc レベル解除 / 2 回でデモ", en: "Esc Exit level / 2× for demo", es: "Esc Salir / 2× demo" },
   shortcutLang: { ja: "J/E/N 言語", en: "J/E/N Language", es: "J/E/N Idioma" },
 
   // Welcome / Help page

@@ -23,6 +23,7 @@ export const HELP_CONTENTS: Record<string, HelpContent> = {
       { textKey: "helpStepPlayground1" },
       { textKey: "helpStepPlayground2" },
       { textKey: "helpStepPlayground3" },
+      { textKey: "helpStepPlayground4" },
     ],
   },
   lv1: {

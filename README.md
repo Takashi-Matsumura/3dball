@@ -15,6 +15,8 @@ Three.js (React Three Fiber) を使った 3D ボール操作アプリ。NFC カ�
 - **リプレイページ** — URL パラメータからプログラムを再生。Vercel で公開中
 - **レベルシステム** — Lv1/Lv2/Lv3 のステージ制。レベルごとに異なるグリッドサイズ・ルール
 - **効果音** — Web Audio API で合成。移動・ジャンプ・壁バンプ・成功・バースト・分岐など (外部ファイル不要)
+- **自動デモ (アトラクトモード)** — Playground で `Esc` を 2 回押すとボールが自動で動き始め、操作方法を視覚的に紹介。ジャンプのたびに模様・色・幅がランダムに変化。もう一度 `Esc` で元のデザインに復元
+- **ヘルプページ** — `/help` で学習コース紹介・レベル別ガイド・NFC カード登録・言語切替を一括提供 (イベント運営・教員向け)
 
 ## レベルシステム
 
@@ -74,8 +76,8 @@ http://localhost:3000 を開いてください。
 ## NFC カードの使い方
 
 1. USB NFC リーダーを接続する
-2. http://localhost:3000/nfc にアクセス
-3. 方向 (上 / 下 / 左 / 右)・ジャンプ・ループ (x2 / x3)・分岐 (？) を選択
+2. http://localhost:3000/help にアクセス (または設定パネル `S` → 「ヘルプ」)
+3. ページ下部の「NFC カード登録」で方向 (上 / 下 / 左 / 右)・ジャンプ・ループ (x2 / x3)・分岐 (？) を選択
 4. NFC カードをリーダーにかざして登録
 5. 8 枚のカードにそれぞれアクションを割り当てる
 6. メインページでカードをかざすとボールが移動 (ループ・分岐カードはプログラミングモード専用)
@@ -160,7 +162,7 @@ Windows 上でリビルド (`npm rebuild`) するには **Python** と **Visual 
 
 ## デプロイ
 
-- **Vercel**: https://3dball-hazel.vercel.app — リプレイページ (`/replay`) のみ公開
+- **Vercel**: https://3dball-hazel.vercel.app — リプレイページ (`/replay`) とヘルプページ (`/help`) のみ公開
 - **ローカル (macOS)**: `npm run dev` でフル機能
 - **Windows ポータブル**: 上記の「Windows ポータブル配布」セクション参照
 
@@ -172,9 +174,10 @@ app/
   Ball.tsx              # 3D シーン (盤面、ボール、カメラ、操作)
   components/
     Scene.tsx           # 共有 3D コンポーネント
-  nfc/
-    page.tsx            # NFC カード登録ページ
-    NfcWriter.tsx       # 登録 UI コンポーネント
+    Guide.tsx           # InfoOverlay / InfoButton (レベル紹介オーバーレイ)
+  help/
+    page.tsx            # ヘルプページ (学習ガイド + NFC 登録 + 言語切替)
+    NfcWriter.tsx       # NFC カード登録 UI
   replay/
     page.tsx            # リプレイページ (サーバーコンポーネント)
     ReplayScene.tsx     # リプレイ UI (クライアントコンポーネント)
@@ -187,6 +190,8 @@ lib/
   levels.ts             # レベル定義 (LevelConfig、障害物生成、BFS)
   useLevel.ts           # レベル状態管理フック
   useProgramRunner.ts   # プログラム実行エンジン (共有フック)
+  useDemoMode.ts        # Playground アトラクトモード (Esc ダブルプッシュ起動)
+  guide-content.ts      # ヘルプページのレベル別コンテンツ定義
   sounds.ts             # 効果音 (Web Audio API)
   nfc.ts                # NFC リーダー管理 (nfc-pcsc シングルトン)
   db.ts                 # SQLite による NFC カード登録永続化
@@ -205,18 +210,17 @@ scripts/
 | キー | 操作 |
 |------|------|
 | 矢印キー | ボール移動 |
-| Space | ジャンプ |
+| Space | ジャンプ / つぎへ (クリア時) / New (プログラミングモード) |
 | F1 | Lv1 ON/OFF |
 | F2 | Lv2 ON/OFF |
 | F3 | Lv3 ON/OFF |
-| Escape | レベル解除 |
+| Escape | レベル解除 / Playground で 1 回: デモ停止 / 2 回 (500ms 以内): デモ開始 |
 | Tab | お題を出す (Lv1/Lv2) / マップ変更 (Lv3) |
-| Enter | つぎへ (クリア時) / Run (プログラミングモード) |
+| Enter | Run (プログラミングモード) |
 | Shift+Enter | プログラムあり: 「？」セルの分岐方向を逆転して実行 (隠しモード) / プログラム空: New |
 | P | プログラミングモード ON/OFF |
 | S | 設定パネル ON/OFF |
 | D | 2D/3D 表示切替 |
-| Backspace | プログラム末尾の命令を削除 (プログラミングモード) |
 
 ### テンキー (BUFFALO BSTKH100)
 
@@ -244,17 +248,16 @@ NumLock を OFF にして使用します。イベント会場等でテンキー�
 | キー | 操作 |
 |------|------|
 | 4 / 8 / 6 / 2 | ボール移動 (←↑→↓) |
-| 5 | ジャンプ |
+| 5 | ジャンプ / つぎへ (クリア時) / New (プログラミングモード) |
 | / | プログラミングモード ON/OFF |
 | * | 設定パネル ON/OFF |
 | 9 | 2D/3D 表示切替 |
 | + | レベルサイクル切替 (OFF→Lv1→Lv2→Lv3→OFF) |
 | - | レベル解除 |
 | 0 / 00 | New (プログラムクリア + リセット) |
-| BackSpace | プログラム末尾の命令を削除 |
 | . (Del) | お題を出す / マップ変更 |
 | Tab | お題を出す / マップ変更 |
-| Enter | Run / つぎへ |
+| Enter | Run (プログラミングモード) |
 
 ### NFC カード
 

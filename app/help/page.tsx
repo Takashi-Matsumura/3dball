@@ -122,6 +122,7 @@ const SHORTCUT_KEYS = [
   "shortcutD",
   "shortcutF",
   "shortcutI",
+  "shortcutEsc",
   "shortcutLang",
 ] as const;
 

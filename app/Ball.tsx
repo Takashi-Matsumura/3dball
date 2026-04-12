@@ -503,8 +503,8 @@ export default function Ball() {
         }
         return;
       }
-      // Enter → next challenge when level cleared (non-prog mode)
-      if (e.key === "Enter" && level.cleared && !progMode) {
+      // Space → next challenge when level cleared (non-prog mode)
+      if ((e.key === " " || e.code === "Space" || e.key === "Clear") && level.cleared && !progMode) {
         e.preventDefault();
         const pos = level.generate();
         setGridPos(pos);
@@ -521,8 +521,8 @@ export default function Ball() {
           }
           return;
         }
-        // Backspace / Insert → New (clear program & regenerate)
-        if ((e.key === "Backspace" || e.key === "Insert") && !progRunning) {
+        // Space / Insert → New (clear program & regenerate)
+        if ((e.key === " " || e.code === "Space" || e.key === "Clear" || e.key === "Insert") && !progRunning) {
           e.preventDefault();
           setProgram([]);
           resetProgIndex();
@@ -642,7 +642,7 @@ export default function Ball() {
               className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-white bg-gray-600 hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               New
-              <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono text-white/60">BS</kbd>
+              <kbd className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono text-white/60">Space</kbd>
             </button>
 
             {/* Program steps */}
@@ -911,7 +911,7 @@ export default function Ball() {
                 className="flex items-center gap-2 rounded-lg px-6 py-3 text-xl font-bold bg-yellow-400/90 text-black hover:bg-yellow-400 transition backdrop-blur shadow-lg animate-pulse"
               >
                 {t("nextChallenge")}
-                <kbd className="rounded bg-black/15 px-2 py-0.5 text-sm font-mono text-black/60">Enter</kbd>
+                <kbd className="rounded bg-black/15 px-2 py-0.5 text-sm font-mono text-black/60">Space</kbd>
               </button>
             )}
           </div>
