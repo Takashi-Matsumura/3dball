@@ -19,6 +19,7 @@ import { playMove, playJump, playBump, playNfcScan, playSuccess, playBurst, play
 import { useLevel } from "@/lib/useLevel";
 import { useProgramRunner } from "@/lib/useProgramRunner";
 import { gridCenter, LEVELS } from "@/lib/levels";
+import { useDemoMode } from "@/lib/useDemoMode";
 import { InfoButton, InfoOverlay } from "@/app/components/Guide";
 
 export default function Ball() {
@@ -63,6 +64,27 @@ export default function Ball() {
   const [ntagWriting, setNtagWriting] = useState(false);
   const [ntagResult, setNtagResult] = useState<"success" | "error" | null>(null);
 
+  // Auto-demo (attract mode): only on Playground, when no other overlays are active.
+  // Note: isAnimating/jumping are intentionally excluded because the demo itself
+  // toggles them — including them would make the demo abort its own animations.
+  const demoEnabled =
+    !level.active &&
+    !progMode &&
+    !progRunning &&
+    !showSettings &&
+    !showInfo &&
+    !showNtagModal;
+  const { demoActive, demoAction, startDemo, cancelDemo } = useDemoMode({
+    enabled: demoEnabled,
+    gridSize: level.gridSize,
+    setGridPos,
+    setIsAnimating,
+    setJumping,
+    setPatternConfig,
+  });
+  // Track last Escape press time for double-Escape detection
+  const lastEscAtRef = useRef(0);
+
   const displaySteps = useMemo(() => groupProgramForDisplay(program), [program]);
 
   useEffect(() => { progModeRef.current = progMode; }, [progMode]);
@@ -81,6 +103,8 @@ export default function Ball() {
   useEffect(() => { isAnimatingRef.current = isAnimating; }, [isAnimating]);
   const levelRef = useRef(level);
   useEffect(() => { levelRef.current = level; }, [level]);
+  const cancelDemoRef = useRef(cancelDemo);
+  useEffect(() => { cancelDemoRef.current = cancelDemo; }, [cancelDemo]);
 
   // Consecutive branch counter for deadlock detection
   const branchChainRef = useRef(0);
@@ -250,6 +274,9 @@ export default function Ball() {
           const cardId = ev.cardId as string;
           if (!NFC_DIRECTIONS.includes(cardId as typeof NFC_DIRECTIONS[number])) continue;
 
+          // Cancel auto-demo on any NFC card scan
+          cancelDemoRef.current();
+
           // Programming mode: add to program instead of moving
           if (progModeRef.current && !progRunningRef.current) {
             setProgram((prev) => {
@@ -351,6 +378,11 @@ export default function Ball() {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      // Double-press Escape → start demo. Non-Esc keys cancel demo.
+      const isEsc = e.key === "Escape" || e.key === "-";
+      if (!isEsc) {
+        cancelDemo();
+      }
       // Info overlay: intercept all keys while shown
       if (showInfo) {
         e.preventDefault();
@@ -415,18 +447,33 @@ export default function Ball() {
           return;
         }
       }
-      // Escape / - → exit level mode
-      if ((e.key === "Escape" || e.key === "-") && level.active) {
+      // Escape / - →
+      //   In a level: exit to Playground (first press returns home)
+      //   Already on Playground: double-press starts the demo; single press cancels demo
+      if (e.key === "Escape" || e.key === "-") {
         e.preventDefault();
-        if (progMode) {
-          setProgMode(false);
-          setProgram([]);
-          resetProgIndex();
-          setProgRunning(false);
-          setPBlockEditing("none");
+        const now = Date.now();
+        const isDoublePress = now - lastEscAtRef.current < 500;
+        lastEscAtRef.current = now;
+
+        if (level.active) {
+          if (progMode) {
+            setProgMode(false);
+            setProgram([]);
+            resetProgIndex();
+            setProgRunning(false);
+            setPBlockEditing("none");
+          }
+          const center = level.deactivate();
+          setGridPos(center);
+          return;
         }
-        const center = level.deactivate();
-        setGridPos(center);
+        // Playground: double-press toggles demo, single-press cancels it if running
+        if (demoActive) {
+          cancelDemo();
+        } else if (isDoublePress) {
+          startDemo();
+        }
         return;
       }
       // + → cycle level (OFF→Lv1→Lv2→Lv3→OFF)
@@ -527,7 +574,7 @@ export default function Ball() {
         return next;
       });
     },
-    [isAnimating, jumping, progMode, progRunning, program, runProgram, level, pBlockEditing, showInfo]
+    [isAnimating, jumping, progMode, progRunning, program, runProgram, level, pBlockEditing, showInfo, cancelDemo, startDemo, demoActive]
   );
 
   useEffect(() => {
@@ -536,7 +583,7 @@ export default function Ball() {
   }, [handleKeyDown]);
 
   return (
-    <div className="relative h-screen w-screen">
+    <div className="relative h-screen w-screen" onPointerDown={cancelDemo}>
       {/* Programming panel — left */}
       <div className={`absolute top-4 left-4 ${progMode ? "z-20 bottom-12 flex flex-col" : "z-10"}`}>
         {/* Panel header */}
@@ -1118,6 +1165,24 @@ export default function Ball() {
           <div className="rounded-xl bg-white/90 px-4 py-3 shadow-xl backdrop-blur text-center animate-bounce">
             <div className="text-2xl">{NFC_ICONS[nfcFlash]}</div>
             <div className="text-xs font-bold text-gray-700">{nfcFlash}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-demo hint */}
+      {demoActive && demoAction && !nfcFlash && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <div className="rounded-xl bg-white/80 px-5 py-3 shadow-xl backdrop-blur text-center transition-opacity duration-200">
+            <div className="text-4xl leading-none">{NFC_ICONS[demoAction]}</div>
+            <div className="text-sm font-bold text-gray-700 mt-1">
+              {t(
+                demoAction === "UP" ? "demoKeyUp" :
+                demoAction === "DOWN" ? "demoKeyDown" :
+                demoAction === "LEFT" ? "demoKeyLeft" :
+                demoAction === "RIGHT" ? "demoKeyRight" :
+                "demoKeyJump"
+              )}
+            </div>
           </div>
         </div>
       )}
