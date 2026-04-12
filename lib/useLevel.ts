@@ -38,6 +38,8 @@ export interface LevelState {
   deactivate: () => GridPos;
   generate: () => GridPos;
   newChallenge: () => GridPos;
+  /** Clear the current challenge (return to "no target move count") */
+  clearChallenge: () => GridPos;
   resetForRun: () => { startPos: GridPos };
   /** Check free-move result. Returns action to take. */
   onFreeMove: (pos: GridPos, isAnimating: boolean) => "success" | "burst" | null;
@@ -145,6 +147,17 @@ export function useLevel(): LevelState {
     return start;
   }, [config, start, goal, challenge, obstacles]);
 
+  const clearChallenge = useCallback((): GridPos => {
+    setChallenge(null);
+    setMoves(0);
+    setBranchUsed(false);
+    movesRef.current = 0;
+    setCleared(false);
+    lastMoveDirRef.current = null;
+    prevPosRef.current = start;
+    return start;
+  }, [start]);
+
   const resetForRun = useCallback(() => {
     setCleared(false);
     clearedRef.current = false;
@@ -241,6 +254,7 @@ export function useLevel(): LevelState {
     deactivate,
     generate,
     newChallenge,
+    clearChallenge,
     resetForRun,
     onFreeMove,
     countMove,

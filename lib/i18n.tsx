@@ -64,6 +64,8 @@ const translations = {
   lv1: { ja: "Lv1", en: "Lv1", es: "Lv1" },
   lv1Theme: { ja: "ゴールをめざそう！", en: "Reach the Goal!", es: "\u00a1Llega a la meta!" },
   lv1Challenge: { ja: "お題", en: "Challenge", es: "Reto" },
+  challengeUpdate: { ja: "更新", en: "Change", es: "Cambiar" },
+  challengeClear: { ja: "やめる", en: "Clear", es: "Quitar" },
   lv1ChallengeTheme: { ja: "回でゴールをめざそう！", en: " moves to the Goal!", es: " movimientos a la meta!" },
 
   // Lv2 mode

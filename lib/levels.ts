@@ -162,7 +162,40 @@ export function generateStartGoal(config: LevelConfig): { start: GridPos; goal: 
   return { start, goal };
 }
 
-/** Generate a challenge target move count */
+/** Max move count a challenge can target. Caps the generator so kids don't
+ *  get overwhelming targets and keeps the progress pip row manageable. */
+export const MAX_CHALLENGE = 15;
+
+/** Shortest path length from start to goal via BFS (returns Infinity if unreachable). */
+function shortestPathLength(
+  start: GridPos,
+  goal: GridPos,
+  gridSize: number,
+  obstacles: GridPos[],
+): number {
+  const key = (c: number, r: number) => `${c},${r}`;
+  const visited = new Set<string>();
+  const queue: { pos: GridPos; dist: number }[] = [{ pos: start, dist: 0 }];
+  visited.add(key(start.col, start.row));
+  while (queue.length > 0) {
+    const { pos, dist } = queue.shift()!;
+    if (pos.col === goal.col && pos.row === goal.row) return dist;
+    for (const dir of ["UP", "DOWN", "LEFT", "RIGHT"]) {
+      const next = moveGrid(pos, dir, gridSize, obstacles);
+      if (!next) continue;
+      const k = key(next.col, next.row);
+      if (visited.has(k)) continue;
+      visited.add(k);
+      queue.push({ pos: next, dist: dist + 1 });
+    }
+  }
+  return Infinity;
+}
+
+/** Generate a challenge target move count in [minFeasible, MAX_CHALLENGE].
+ *  Each call is independent and random — previously shown values can recur.
+ *  The only constraint is that the result differs from `currentChallenge`
+ *  when possible, so pressing Tab always produces a visible change. */
 export function generateChallengeCount(
   start: GridPos,
   goal: GridPos,
@@ -170,13 +203,17 @@ export function generateChallengeCount(
   gridSize: number = 3,
   obstacles: GridPos[] = [],
 ): number {
-  let count: number;
+  const min = shortestPathLength(start, goal, gridSize, obstacles);
+  const minFeasible = Math.max(1, Number.isFinite(min) ? min : 1);
+
+  let count = minFeasible;
   let attempts = 0;
+  const MAX_ATTEMPTS = 20;
   do {
     const path = generateRandomPath(start, goal, gridSize, obstacles);
-    count = path.length;
+    count = Math.min(Math.max(path.length, minFeasible), MAX_CHALLENGE);
     attempts++;
-  } while (count === currentChallenge && attempts < 20);
+  } while (count === currentChallenge && attempts < MAX_ATTEMPTS);
   return count;
 }
 

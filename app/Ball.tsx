@@ -911,26 +911,91 @@ export default function Ball() {
 
       {/* Level HUD — bottom center, above footer */}
       {level.active && (
-        <div className="absolute bottom-12 left-0 right-0 z-10 flex flex-col items-center gap-1">
-          {/* Move counter — shown when challenge is active and not cleared */}
-          {level.challenge !== null && !level.cleared && (
-            <div className="flex items-center gap-3 text-white/90 text-lg font-bold">
-              <span>{level.moves}</span>
-              <span className="text-white/40">/</span>
-              <span className="text-yellow-300">{level.challenge}</span>
+        <div className="absolute bottom-12 left-0 right-0 z-10 flex flex-col items-center gap-2">
+          {/* Challenge card — prominent target display with embedded action buttons */}
+          {level.challenge !== null && (!level.cleared || progMode) && level.config && (
+            <div className="flex flex-col items-center gap-1.5 rounded-2xl bg-gradient-to-b from-yellow-400/95 to-yellow-500/95 px-5 py-3 shadow-xl ring-2 ring-yellow-300/60 backdrop-blur">
+              <div className="flex items-baseline gap-1.5 text-black">
+                <span className="text-xs font-bold tracking-wide text-black/70">
+                  {t("lv1Challenge")}
+                </span>
+                <span className="text-4xl font-black leading-none">{level.challenge}</span>
+                <span className="text-sm font-bold text-black/70">
+                  {td(level.config.challengeThemeKey)}
+                </span>
+              </div>
+              {/* Progress pips: filled = moves used, empty = remaining */}
+              <div className="flex flex-wrap justify-center gap-1 max-w-[260px]">
+                {Array.from({ length: level.challenge }).map((_, i) => {
+                  const used = i < level.moves;
+                  const over = i < level.moves && level.moves > level.challenge!;
+                  return (
+                    <span
+                      key={i}
+                      className={`inline-block w-3 h-3 rounded-full border-2 transition ${
+                        over
+                          ? "bg-red-500 border-red-600"
+                          : used
+                            ? "bg-black border-black"
+                            : "bg-transparent border-black/40"
+                      }`}
+                    />
+                  );
+                })}
+                {/* Overflow pips when moves exceed target */}
+                {level.moves > level.challenge && Array.from({ length: level.moves - level.challenge }).map((_, i) => (
+                  <span key={`over-${i}`} className="inline-block w-3 h-3 rounded-full bg-red-500 border-2 border-red-600" />
+                ))}
+              </div>
+              <div className="text-xs font-bold text-black/80">
+                {level.moves} / {level.challenge}
+              </div>
+              {/* Embedded action buttons: update / clear */}
+              <div className="flex items-center gap-2 mt-1">
+                <button
+                  onClick={() => {
+                    const pos = level.newChallenge();
+                    setGridPos(pos);
+                    setIsAnimating(false);
+                  }}
+                  aria-label={t("challengeUpdate")}
+                  className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold bg-black/15 text-black hover:bg-black/25 active:bg-black/35 transition"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                    <polyline points="23 4 23 10 17 10" />
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                  {t("challengeUpdate")}
+                  <kbd className="rounded bg-black/15 px-1.5 py-0.5 text-[10px] font-mono text-black/70">Tab</kbd>
+                </button>
+                <button
+                  onClick={() => {
+                    const pos = level.clearChallenge();
+                    setGridPos(pos);
+                    setIsAnimating(false);
+                  }}
+                  aria-label={t("challengeClear")}
+                  className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold bg-black/15 text-black hover:bg-red-100 active:bg-red-200 transition"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                  {t("challengeClear")}
+                </button>
+              </div>
             </div>
           )}
-          {/* Theme text */}
-          {(!level.cleared || progMode) && level.config && (
+          {/* Theme text — only when no challenge is set */}
+          {level.challenge === null && (!level.cleared || progMode) && level.config && (
             <div className="text-xl font-bold text-yellow-300 drop-shadow-md" style={{ textShadow: "0 0 10px rgba(255,200,0,0.6)" }}>
-              {level.challenge !== null
-                ? `${level.challenge}${td(level.config.challengeThemeKey)}`
-                : td(level.config.themeKey)}
+              {td(level.config.themeKey)}
             </div>
           )}
           {/* Action buttons row */}
           <div className="flex items-center gap-2 mt-1">
-            {level.config?.hasChallenge && (!level.cleared || progMode) && (
+            {/* お題 button: only show when no challenge is set yet */}
+            {level.config?.hasChallenge && level.challenge === null && (!level.cleared || progMode) && (
               <button
                 onClick={() => {
                   const pos = level.newChallenge();
