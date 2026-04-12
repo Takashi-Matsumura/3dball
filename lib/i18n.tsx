@@ -19,6 +19,8 @@ const translations = {
   color1: { ja: "色 1", en: "Color 1", es: "Color 1" },
   color2: { ja: "色 2", en: "Color 2", es: "Color 2" },
   width: { ja: "幅", en: "Width", es: "Ancho" },
+  help: { ja: "ヘルプ", en: "Help", es: "Ayuda" },
+  backToApp: { ja: "戻る", en: "Back", es: "Volver" },
   nfcCardRegister: { ja: "NFC カード登録", en: "NFC Card Setup", es: "Registro NFC" },
   nfcConnected: { ja: "NFC 接続中", en: "NFC Connected", es: "NFC Conectado" },
   nfcDisconnected: { ja: "NFC 未接続", en: "NFC Disconnected", es: "NFC Desconectado" },
@@ -90,15 +92,7 @@ const translations = {
   writeFailed: { ja: "書き込みに失敗しました", en: "Write failed", es: "Error de escritura" },
   waitingForNtag: { ja: "NTAGを待っています...", en: "Waiting for NTAG...", es: "Esperando NTAG..." },
 
-  // Guide — context hints
-  guidePlayground: { ja: "Lv1 をおしてスタート！", en: "Press Lv1 to start!", es: "¡Presiona Lv1 para empezar!" },
-  guideLv1Intro: { ja: "ボールをゴールへうごかそう！", en: "Move the ball to the goal!", es: "¡Mueve la bola a la meta!" },
-  guideLv2Intro: { ja: "障害物をよけてゴール！×2/×3で繰り返し", en: "Dodge obstacles! Use ×2/×3 to repeat", es: "¡Esquiva obstáculos! Usa ×2/×3 para repetir" },
-  guideLv3Intro: { ja: "？で道が分岐する！条件を読もう", en: "? splits the path! Read the conditions", es: "¡? divide el camino! Lee las condiciones" },
-  guideProgFirst: { ja: "カードをかざして めいれいをついか", en: "Tap a card to add a command", es: "Acerca una tarjeta para agregar" },
-  guideCleared: { ja: "クリア！つぎへいこう！", en: "Cleared! Let's go next!", es: "¡Completado! ¡Vamos!" },
-
-  // Guide — help panel
+  // Help page
   helpTitle: { ja: "ガイド", en: "Guide", es: "Guía" },
   helpMission: { ja: "ミッション", en: "Mission", es: "Misión" },
   helpSteps: { ja: "やりかた", en: "How to play", es: "Cómo jugar" },
@@ -146,17 +140,10 @@ const translations = {
   shortcutP: { ja: "P プログラミング", en: "P Programming", es: "P Programar" },
   shortcutD: { ja: "D 2D/3D切替", en: "D 2D/3D toggle", es: "D Cambiar 2D/3D" },
   shortcutF: { ja: "F1-F3 レベル", en: "F1-F3 Level", es: "F1-F3 Nivel" },
-  shortcutH: { ja: "H ガイド", en: "H Guide", es: "H Guía" },
   shortcutI: { ja: "I インフォ", en: "I Info", es: "I Info" },
   shortcutLang: { ja: "J/E/N 言語", en: "J/E/N Language", es: "J/E/N Idioma" },
 
-  // Guide — font size setting
-  guideFontSize: { ja: "ガイド文字サイズ", en: "Guide font size", es: "Tamaño de fuente guía" },
-  guideFontSmall: { ja: "小", en: "S", es: "P" },
-  guideFontMedium: { ja: "中", en: "M", es: "M" },
-  guideFontLarge: { ja: "大", en: "L", es: "G" },
-
-  // Welcome page
+  // Welcome / Help page
   welcomeTitle: { ja: "3D Ball へようこそ！", en: "Welcome to 3D Ball!", es: "¡Bienvenido a 3D Ball!" },
   welcomeIntro: { ja: "ボールを動かしてプログラミングを学ぼう！\nカードを使って「命令」を並べると、\nボールが自動で動くよ。", en: "Move the ball and learn programming!\nStack cards to build commands,\nthen watch the ball move on its own.", es: "¡Mueve la bola y aprende programación!\nApila tarjetas para crear comandos\ny mira cómo la bola se mueve sola." },
   welcomeLevels: { ja: "コース", en: "Courses", es: "Cursos" },
@@ -169,7 +156,6 @@ const translations = {
   welcomeControlKeys: { ja: "矢印キーで動く、スペースキーでジャンプ", en: "Arrow keys to move, Space to jump", es: "Flechas para mover, Espacio para saltar" },
   welcomeControlProg: { ja: "プログラミングモードで命令を並べて Run！", en: "Programming mode: stack commands and Run!", es: "Modo programación: apila comandos y ¡Run!" },
   welcomeStart: { ja: "はじめる", en: "Start", es: "Empezar" },
-  shortcutW: { ja: "W ようこそ", en: "W Welcome", es: "W Bienvenida" },
 
   // Info overlay — mode descriptions (marquee text)
   infoPlayground: {

@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
   // On Vercel (production), only allow /replay routes
-  if (process.env.VERCEL && !request.nextUrl.pathname.startsWith("/replay")) {
+  if (process.env.VERCEL && !request.nextUrl.pathname.startsWith("/replay") && !request.nextUrl.pathname.startsWith("/help")) {
     return NextResponse.rewrite(new URL("/replay", request.url));
   }
   return NextResponse.next();

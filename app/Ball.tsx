@@ -19,24 +19,15 @@ import { playMove, playJump, playBump, playNfcScan, playSuccess, playBurst, play
 import { useLevel } from "@/lib/useLevel";
 import { useProgramRunner } from "@/lib/useProgramRunner";
 import { gridCenter, LEVELS } from "@/lib/levels";
-import { useGuide } from "@/lib/useGuide";
-import { HelpButton, HelpPanel, WelcomePanel, InfoButton, InfoOverlay, GuideFontSize } from "@/app/components/Guide";
+import { InfoButton, InfoOverlay } from "@/app/components/Guide";
 
 export default function Ball() {
   const { locale, setLocale, t, td } = useI18n();
   const level = useLevel();
   const runner = useProgramRunner();
-  const guide = useGuide();
   const { gridPos, setGridPos, isAnimating, setIsAnimating, jumping, setJumping, progIndex, resetProgIndex, handleAnimDone, handleJumpDone } = runner;
   const [is2D, setIs2D] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [guideFontSize, setGuideFontSize] = useState<GuideFontSize>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("guideFontSize");
-      if (saved === "small" || saved === "medium" || saved === "large") return saved;
-    }
-    return "small";
-  });
   const [patternConfig, setPatternConfig] = useState<PatternConfig>({
     pattern: 0,
     color1: "#4488ff",
@@ -62,14 +53,6 @@ export default function Ball() {
   const setPBlockEditing = useCallback((v: "none" | "if" | "else") => {
     pBlockEditingRef.current = v;
     setPBlockEditingState(v);
-  }, []);
-
-  // Welcome page
-  const [showWelcome, setShowWelcome] = useState(false);
-  useEffect(() => {
-    if (!localStorage.getItem("welcomeSeen")) {
-      setShowWelcome(true);
-    }
   }, []);
 
   // Info overlay
@@ -390,22 +373,10 @@ export default function Ball() {
         }
         return;
       }
-      // H / Home(7) → toggle guide
-      if ((e.key === "h" || e.key === "Home") && !e.metaKey && !e.ctrlKey) {
-        e.preventDefault();
-        guide.toggleHelp();
-        return;
-      }
       // I → toggle info overlay
       if (e.key === "i" && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         setShowInfo((v) => !v);
-        return;
-      }
-      // W → toggle welcome
-      if (e.key === "w" && !e.metaKey && !e.ctrlKey) {
-        e.preventDefault();
-        setShowWelcome((v) => !v);
         return;
       }
       // J/E/N → switch language
@@ -556,27 +527,13 @@ export default function Ball() {
         return next;
       });
     },
-    [isAnimating, jumping, progMode, progRunning, program, runProgram, level, pBlockEditing, guide.toggleHelp, showInfo]
+    [isAnimating, jumping, progMode, progRunning, program, runProgram, level, pBlockEditing, showInfo]
   );
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
-
-  // Update guide context on state changes
-  useEffect(() => {
-    guide.updateContext({
-      levelActive: level.active,
-      levelId: level.levelId,
-      levelCleared: level.cleared,
-      progMode,
-      progRunning,
-      nfcConnected,
-      programLength: program.length,
-      bursting: level.bursting,
-    });
-  }, [level.active, level.levelId, level.cleared, level.bursting, progMode, progRunning, nfcConnected, program.length, guide.updateContext]);
 
   return (
     <div className="relative h-screen w-screen">
@@ -1005,52 +962,11 @@ export default function Ball() {
             </div>
 
             <a
-              href="/nfc"
+              href="/help"
               className="rounded-lg bg-white/95 px-4 py-2 text-sm font-medium text-black shadow-md backdrop-blur border border-gray-200 transition hover:bg-white text-center"
             >
-              {t("nfcCardRegister")}
+              {t("help")}
             </a>
-
-            <div className="rounded-lg bg-white/95 p-3 shadow-md backdrop-blur border border-gray-200 flex flex-col gap-1">
-              <label className="text-xs text-black/60 mb-1">{t("guideFontSize")}</label>
-              <div className="flex gap-1">
-                {(["small", "medium", "large"] as GuideFontSize[]).map((size) => (
-                  <button
-                    key={size}
-                    onClick={() => {
-                      setGuideFontSize(size);
-                      localStorage.setItem("guideFontSize", size);
-                    }}
-                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition ${
-                      guideFontSize === size
-                        ? "bg-black text-white"
-                        : "bg-gray-100 text-black/70 hover:bg-gray-200"
-                    }`}
-                  >
-                    {t(size === "small" ? "guideFontSmall" : size === "medium" ? "guideFontMedium" : "guideFontLarge")}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-white/95 p-3 shadow-md backdrop-blur border border-gray-200 flex flex-col gap-1">
-              <label className="text-xs text-black/60 mb-1">{t("language")}</label>
-              <div className="flex gap-1">
-                {(["ja", "en", "es"] as Locale[]).map((lang) => (
-                  <button
-                    key={lang}
-                    onClick={() => setLocale(lang)}
-                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition ${
-                      locale === lang
-                        ? "bg-black text-white"
-                        : "bg-gray-100 text-black/70 hover:bg-gray-200"
-                    }`}
-                  >
-                    {{ ja: "日本語", en: "English", es: "Español" }[lang]}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         )}
       </div>
@@ -1083,7 +999,6 @@ export default function Ball() {
         </div>
         <div className="flex items-center gap-2 text-xs font-medium text-white/80">
           <InfoButton onClick={() => setShowInfo(true)} />
-          <HelpButton onClick={guide.toggleHelp} />
           <span
             className={`inline-block w-2 h-2 rounded-full ${
               nfcConnected ? "bg-green-400 animate-pulse" : "bg-gray-500"
@@ -1190,23 +1105,6 @@ export default function Ball() {
             )}
           </div>
         </div>
-      )}
-
-      {/* Welcome page */}
-      {showWelcome && (
-        <WelcomePanel
-          onClose={() => {
-            setShowWelcome(false);
-            localStorage.setItem("welcomeSeen", "1");
-          }}
-          fontSize={guideFontSize}
-        />
-      )}
-
-
-      {/* Guide help panel */}
-      {guide.helpOpen && (
-        <HelpPanel contentKey={guide.helpContentKey} onClose={guide.closeHelp} fontSize={guideFontSize} />
       )}
 
       {/* Info overlay */}
