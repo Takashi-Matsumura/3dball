@@ -18,6 +18,8 @@ export interface RunConfig {
   reverseBranch?: boolean;
   /** Called each time a JUMP action executes (so move counters can update in real time) */
   onJump?: () => void;
+  /** Called when a direction move fails (bump into wall/obstacle) — still counts as a move attempt */
+  onBump?: () => void;
 }
 
 export interface RunResult {
@@ -89,13 +91,14 @@ export function useProgramRunner() {
     obstacles: GridPos[], isPassthrough: RunConfig["isPassthrough"],
     stepIdx: number, totalSteps: number,
     passedGoalRef: { value: boolean },
+    onBump?: () => void,
   ): Promise<GridPos> => {
     if (direction === "JUMP") {
       await waitJump();
       return currentPos;
     }
     const next = moveGrid(currentPos, direction, gridSize, obstacles);
-    if (!next) { playBump(); return currentPos; }
+    if (!next) { playBump(); onBump?.(); return currentPos; }
     if (isPassthrough?.(next, stepIdx, totalSteps)) passedGoalRef.value = true;
     await waitMove(next);
     return next;
@@ -111,6 +114,7 @@ export function useProgramRunner() {
     jumpCountRef: { value: number },
     onJump?: () => void,
     bodyIndexMap?: number[],
+    onBump?: () => void,
   ): Promise<{ pos: GridPos; burstFromBranch?: boolean }> => {
     let pos = startPos;
     for (let si = 0; si < body.length; si++) {
@@ -118,7 +122,7 @@ export function useProgramRunner() {
       if (step === "PIPE" || step === "SLASH" || step === "BRANCH") continue;
       if (bodyIndexMap) setProgIndex(bodyIndexMap[si]);
       if (step === "JUMP") { jumpCountRef.value += 1; onJump?.(); }
-      pos = await execMove(pos, step, gridSize, obstacles, isPassthrough, progIdx, totalSteps, passedGoalRef);
+      pos = await execMove(pos, step, gridSize, obstacles, isPassthrough, progIdx, totalSteps, passedGoalRef, onBump);
       await new Promise((r) => setTimeout(r, 200));
       if (step !== "JUMP") {
         // In BRANCH body: landing on "?" without explicit BRANCH card → burst
@@ -133,7 +137,7 @@ export function useProgramRunner() {
 
   /** Run program steps with animations. Returns final position and passedGoal flag. */
   const runSteps = useCallback(async (config: RunConfig): Promise<RunResult> => {
-    const { steps, startPos, gridSize, obstacles, branchCells = [], isPassthrough, reverseBranch = false, onJump } = config;
+    const { steps, startPos, gridSize, obstacles, branchCells = [], isPassthrough, reverseBranch = false, onJump, onBump } = config;
 
     setGridPos(startPos);
     setIsAnimating(false);
@@ -208,7 +212,7 @@ export function useProgramRunner() {
           const result = await execBody(
             chosenBody, currentPos, gridSize, obstacles, branchCells,
             undefined, indexMap[i], expanded.length,
-            passedGoalRef, branchUsedRef, jumpCountRef, onJump, bodyIndexMap,
+            passedGoalRef, branchUsedRef, jumpCountRef, onJump, bodyIndexMap, onBump,
           );
           if (result.burstFromBranch) {
             return { finalPos: result.pos, passedGoal: passedGoalRef.value, burstFromBranch: true, branchUsed: branchUsedRef.value, jumpCount: jumpCountRef.value };
@@ -226,7 +230,10 @@ export function useProgramRunner() {
         await waitJump();
       } else {
         const next = moveGrid(currentPos, token, gridSize, obstacles);
-        if (next) {
+        if (!next) {
+          playBump();
+          onBump?.();
+        } else {
           // Only flag passthrough if there are remaining tokens that can still
           // move the ball away from this cell. Trailing JUMP/PIPE/SLASH don't
           // change position, so reaching the goal just before them is the

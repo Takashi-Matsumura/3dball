@@ -270,6 +270,7 @@ export default function Ball() {
       isPassthrough: level.active ? level.isPassthrough : undefined,
       reverseBranch: options?.reverseBranch,
       onJump: level.active ? level.addMove : undefined,
+      onBump: level.active ? level.addMove : undefined,
     });
 
     if (burstFromBranch) {
