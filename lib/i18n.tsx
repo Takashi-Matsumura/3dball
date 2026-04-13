@@ -78,6 +78,15 @@ const translations = {
   lv3Theme: { ja: "？で分岐してゴール！", en: "Branch at ? to Goal!", es: "¡Bifurca en ? a la meta!" },
   lv3ChallengeTheme: { ja: "回で？を使ってゴール！", en: " moves, use ? to Goal!", es: " movimientos, ¡usa ?!" },
 
+  // Lv4 mode
+  lv4: { ja: "Lv4", en: "Lv4", es: "Lv4" },
+  lv4Theme: { ja: "コインを集めて、各ゴールに必要な数だけ届けよう！", en: "Collect coins and deliver the required amount to each goal!", es: "¡Recoge monedas y entrega la cantidad requerida a cada meta!" },
+  lv4ChallengeTheme: { ja: "コインを集めてゴールへ！", en: "Collect & deliver!", es: "¡Recoge y entrega!" },
+  coinCountLabel: { ja: "手持ち", en: "Carrying", es: "Llevando" },
+  goalLabelPrefix: { ja: "ゴール", en: "Goal ", es: "Meta " },
+  goalRemainLabel: { ja: "残", en: "need", es: "faltan" },
+  goalDone: { ja: "完了", en: "Done", es: "Listo" },
+
   // Loop cards & branch
   dirX2: { ja: "×2 (Loop2)", en: "\u00d72 (Loop2)", es: "\u00d72 (Loop2)" },
   dirX3: { ja: "×3 (Loop3)", en: "\u00d73 (Loop3)", es: "\u00d73 (Loop3)" },
@@ -142,13 +151,20 @@ const translations = {
   helpStepLv3_2: { ja: "ボールの動きを観察してみてルールを見つけ出してみて！", en: "Watch the ball and figure out the rule!", es: "Observa la bola y descubre la regla." },
   helpStepLv3_3: { ja: "プログラミングでは、？カードで if/else ブロックを作れるよ。", en: "In Programming, use the ? card to build if/else blocks.", es: "En Programación, usa la tarjeta ? para crear bloques if/else." },
   helpStepLv3_4: { ja: "条件によって違う道を選ぶ——それがプログラミングの力！", en: "Choose different paths by condition — that's programming!", es: "Elige caminos según condiciones — ¡eso es programar!" },
+  helpTitleLv4: { ja: "レベル４（複数ゴールとコイン）", en: "Lv4: Multi-goals & Coins", es: "Lv4: Multi-metas y Monedas" },
+  helpObjLv4: { ja: "コインを集めて、各ゴールに必要な数だけ届けよう。", en: "Collect coins and deliver the required amount to each goal.", es: "Recoge monedas y entrega la cantidad requerida a cada meta." },
+  helpConceptLv4: { ja: "状態管理と計画 — 手持ちを意識して順路を組み立てる", en: "State & planning — track what you carry and plan routes", es: "Estado y planificación — controla lo que llevas y planea rutas" },
+  helpStepLv4_1: { ja: "金色のコインを通ると自動で手持ちに入るよ。", en: "Pass over a gold coin to pick it up into your carry.", es: "Pasa sobre una moneda dorada para recogerla." },
+  helpStepLv4_2: { ja: "ゴールにとまると、そのゴールに必要な枚数だけ納品されるよ。", en: "Stop on a goal to deliver as many as it needs.", es: "Párate en una meta para entregar lo necesario." },
+  helpStepLv4_3: { ja: "足りないと手持ちを全部おいてくるから、どの順番で回るか計画してね。", en: "If you come up short, you drop everything — plan your visit order.", es: "Si te faltan, dejas todo — planifica el orden de visita." },
+  helpStepLv4_4: { ja: "全部のゴールに必要な数を届けるとクリア！", en: "Deliver to every goal to clear the stage!", es: "¡Entrega en cada meta para completar el nivel!" },
 
   // Guide — shortcuts table
   shortcutArrows: { ja: "↑↓←→ 移動", en: "↑↓←→ Move", es: "↑↓←→ Mover" },
   shortcutSpace: { ja: "Space ジャンプ", en: "Space Jump", es: "Space Saltar" },
   shortcutP: { ja: "P プログラミング", en: "P Programming", es: "P Programar" },
   shortcutD: { ja: "D 2D/3D切替", en: "D 2D/3D toggle", es: "D Cambiar 2D/3D" },
-  shortcutF: { ja: "F1-F3 レベル", en: "F1-F3 Level", es: "F1-F3 Nivel" },
+  shortcutF: { ja: "F1-F4 レベル", en: "F1-F4 Level", es: "F1-F4 Nivel" },
   shortcutI: { ja: "I インフォ", en: "I Info", es: "I Info" },
   shortcutEsc: { ja: "Esc レベル解除 / 2 回でデモ", en: "Esc Exit level / 2× for demo", es: "Esc Salir / 2× demo" },
 
@@ -160,6 +176,7 @@ const translations = {
   welcomeLv1Desc: { ja: "レベル１（順番）— 命令を順番に並べてゴールしよう", en: "Lv1: Sequence — line up commands to reach the goal", es: "Lv1: Secuencia — alinea comandos para llegar a la meta" },
   welcomeLv2Desc: { ja: "レベル２（繰り返し）— ×2/×3 カードで繰り返しを使おう", en: "Lv2: Loops — use ×2/×3 cards to repeat commands", es: "Lv2: Bucles — usa tarjetas ×2/×3 para repetir" },
   welcomeLv3Desc: { ja: "レベル３（条件分岐）— ？カードで道を分けよう", en: "Lv3: Conditionals — use ? cards to split the path", es: "Lv3: Condicionales — usa tarjetas ? para dividir el camino" },
+  welcomeLv4Desc: { ja: "レベル４（複数ゴール）— コインを集めて各ゴールに届けよう", en: "Lv4: Multi-goals — collect coins and deliver to each goal", es: "Lv4: Multi-metas — recoge monedas y entrega a cada meta" },
   welcomeControls: { ja: "操作方法", en: "Controls", es: "Controles" },
   welcomeControlCards: { ja: "カードをかざして命令を送る", en: "Tap cards to send commands", es: "Acerca tarjetas para enviar comandos" },
   welcomeControlKeys: { ja: "矢印キーで動く、スペースキーでジャンプ", en: "Arrow keys to move, Space to jump", es: "Flechas para mover, Espacio para saltar" },
@@ -186,6 +203,11 @@ const translations = {
     ja: "レベル３（条件分岐）：　紫の「？」マスに乗ると、ボールが自動で動くよ。　ボールの動きを観察してみてルールを見つけ出してみて！　必ず「？」マスを通ってゴールしよう。　プログラミングでは、？カードで if/else ブロックを作れるよ。",
     en: "Level 3 \"Conditionals\"  ——  Land on a purple ? cell and your direction changes based on how you arrived!  Come from the side → go vertical. Come from top/bottom → go horizontal.  You must pass through a ? cell to reach the goal.  In Programming, use the ? card to create if/else blocks.  Choosing different paths based on conditions — that's the power of programming!",
     es: "Nivel 3 \"Condicionales\"  ——  ¡Pisa una celda ? morada y tu dirección cambia según de dónde vengas!  Vienes del lado → vas vertical. Vienes de arriba/abajo → vas horizontal.  Debes pasar por una celda ? para llegar a la meta.  En Programación, usa la tarjeta ? para crear bloques if/else.  Elegir diferentes caminos según condiciones — ¡ese es el poder de la programación!",
+  },
+  infoLv4: {
+    ja: "レベル４（複数ゴールとコイン）：　マップには金色のコインとオレンジのゴールが複数あるよ。　各ゴールの上には「必要な枚数」が書かれているよ。　ボールでコインを拾いながら、各ゴールに必要な枚数ずつ届けよう。　全部のゴールに届けたらクリア！　足りないままゴールに寄ると、手持ちを全部おいてくるから計画が大事。",
+    en: "Level 4 \"Multi-goals & Coins\"  ——  The map has gold coins and multiple orange goals.  Each goal shows how many coins it needs.  Pick up coins as you move and deliver the required amount to each goal.  Deliver to every goal to clear!  If you arrive with fewer than needed, you drop everything you have — plan carefully!",
+    es: "Nivel 4 \"Multi-metas y Monedas\"  ——  El mapa tiene monedas doradas y varias metas naranjas.  Cada meta muestra cuántas monedas necesita.  Recoge monedas mientras te mueves y entrega la cantidad requerida en cada meta.  ¡Entrega en todas las metas para completar!  Si llegas con menos, dejas todo lo que tienes — ¡planifica con cuidado!",
   },
 } as const;
 

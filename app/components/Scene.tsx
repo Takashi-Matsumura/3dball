@@ -242,6 +242,103 @@ export function ObstacleMarker({
   );
 }
 
+/** Coin marker — floating rotating gold coin. Hidden when collected. */
+export function CoinMarker({
+  col,
+  row,
+  collected,
+  gridSize = 7,
+}: {
+  col: number;
+  row: number;
+  collected: boolean;
+  gridSize?: number;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const offset = (gridSize - 1) / 2;
+  const x = (col - offset) * CELL_SIZE;
+  const z = (row - offset) * CELL_SIZE;
+
+  useFrame((_state, delta) => {
+    if (!groupRef.current) return;
+    // Spin around vertical (Y) axis — classic coin-flip visual
+    groupRef.current.rotation.y += delta * 1.2;
+    const t = performance.now() / 1000;
+    groupRef.current.position.y = 0.35 + Math.sin(t * 2) * 0.04;
+  });
+
+  if (collected) return null;
+
+  return (
+    <group ref={groupRef} position={[x, 0.35, z]}>
+      {/* Cylinder rotated to stand on its edge so faces point sideways —
+       *  the parent group then spins around Y to produce face→edge→face motion. */}
+      <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[CELL_SIZE * 0.2, CELL_SIZE * 0.2, 0.05, 32]} />
+        <meshStandardMaterial color="#ffeb3b" emissive="#ffd700" emissiveIntensity={0.6} metalness={0.7} roughness={0.25} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Goal requirement decal — renders the remaining coin count flat on the board surface,
+ *  inside the CellMarker pulsing ring. */
+export function GoalRequirementSprite({
+  col,
+  row,
+  remaining,
+  done,
+  gridSize = 7,
+}: {
+  col: number;
+  row: number;
+  /** Unused here — kept for prop compatibility */
+  label?: string;
+  remaining: number;
+  done: boolean;
+  gridSize?: number;
+}) {
+  const texture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, 128, 128);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    ctx.miterLimit = 2;
+    const draw = (text: string, fontPx: number, fill: string, yOffset: number) => {
+      ctx.font = `bold ${fontPx}px sans-serif`;
+      // White outline for contrast against dark cells
+      ctx.lineWidth = 10;
+      ctx.strokeStyle = "#ffffff";
+      ctx.strokeText(text, 64, 64 + yOffset);
+      ctx.fillStyle = fill;
+      ctx.fillText(text, 64, 64 + yOffset);
+    };
+    if (done) {
+      draw("✓", 96, "#1b5e20", 8);
+    } else {
+      draw(String(remaining), 96, "#d84315", 0);
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+  }, [remaining, done]);
+
+  const offset = (gridSize - 1) / 2;
+  const x = (col - offset) * CELL_SIZE;
+  const z = (row - offset) * CELL_SIZE;
+
+  return (
+    <mesh position={[x, 0.03, z]} rotation={[-Math.PI / 2, 0, 0]}>
+      <planeGeometry args={[CELL_SIZE * 0.55, CELL_SIZE * 0.55]} />
+      <meshBasicMaterial map={texture} transparent depthWrite={false} toneMapped={false} />
+    </mesh>
+  );
+}
+
 /** Branch cell marker — pulsing "?" on the board surface, same style as CellMarker */
 export function BranchMarker({
   branchCell,

@@ -60,4 +60,15 @@ export const HELP_CONTENTS: Record<string, HelpContent> = {
       { textKey: "helpStepLv3_4" },
     ],
   },
+  lv4: {
+    titleKey: "helpTitleLv4",
+    objectiveKey: "helpObjLv4",
+    conceptKey: "helpConceptLv4",
+    steps: [
+      { textKey: "helpStepLv4_1" },
+      { textKey: "helpStepLv4_2" },
+      { textKey: "helpStepLv4_3" },
+      { textKey: "helpStepLv4_4" },
+    ],
+  },
 };

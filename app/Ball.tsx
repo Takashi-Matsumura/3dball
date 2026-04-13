@@ -12,7 +12,7 @@ import {
   moveGrid,
 } from "@/lib/ball-shared";
 import { encodeProgram, groupProgramForDisplay } from "@/lib/program";
-import { SceneLighting, CameraController, Board, Ground, Sphere, CellMarker, TextSprite, ObstacleMarker, BranchMarker } from "@/app/components/Scene";
+import { SceneLighting, CameraController, Board, Ground, Sphere, CellMarker, TextSprite, ObstacleMarker, BranchMarker, CoinMarker, GoalRequirementSprite } from "@/app/components/Scene";
 import { playMove, playJump, playBump, playNfcScan, playSuccess, playBurst, playBranch } from "@/lib/sounds";
 import { useLevel } from "@/lib/useLevel";
 import { useProgramRunner } from "@/lib/useProgramRunner";
@@ -206,6 +206,13 @@ export default function Ball() {
   useEffect(() => {
     if (!level.active || level.bursting) return;
     level.countMove(gridPos);
+    // Lv4: handle coin pickup / goal delivery on every arrival (both free-move and program run)
+    const justCleared = level.onCellArrival(gridPos);
+    if (justCleared) {
+      playSuccess();
+      runner.triggerCelebrate();
+      return;
+    }
     if (isAnimating || progMode) return;
 
     // Check for auto-branch on "?" cell (works even after clearing)
@@ -267,10 +274,11 @@ export default function Ball() {
       gridSize: level.gridSize,
       obstacles: level.obstacles,
       branchCells: level.branchCells,
-      isPassthrough: level.active ? level.isPassthrough : undefined,
+      // Lv4: coins/goals are visited freely, no passthrough burst
+      isPassthrough: level.active && level.config?.id !== "lv4" ? level.isPassthrough : undefined,
       reverseBranch: options?.reverseBranch,
-      onJump: level.active ? level.addMove : undefined,
-      onBump: level.active ? level.addMove : undefined,
+      onJump: level.active && level.config?.id !== "lv4" ? level.addMove : undefined,
+      onBump: level.active && level.config?.id !== "lv4" ? level.addMove : undefined,
     });
 
     if (burstFromBranch) {
@@ -477,17 +485,18 @@ export default function Ball() {
         }
         return;
       }
-      // + → cycle level (OFF→Lv1→Lv2→Lv3→OFF)
+      // + → cycle level (OFF→Lv1→Lv2→Lv3→OFF). Lv4 is hidden — reachable only via F4.
       if (e.key === "+" && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
-        const currentIdx = level.levelId ? levelIds.indexOf(level.levelId) : -1;
+        const visibleIds = levelIds.filter((id) => id !== "lv4");
+        const currentIdx = level.levelId ? visibleIds.indexOf(level.levelId) : -1;
         const nextIdx = currentIdx + 1;
         if (progMode) closeProgMode();
-        if (nextIdx >= levelIds.length) {
+        if (nextIdx >= visibleIds.length) {
           const center = level.deactivate();
           setGridPos(center);
         } else {
-          const pos = level.activate(levelIds[nextIdx]);
+          const pos = level.activate(visibleIds[nextIdx]);
           setGridPos(pos);
         }
         return;
@@ -713,6 +722,33 @@ export default function Ball() {
               </div>
             </div>
           )}
+          {/* Lv4 coin/goal status panel (hidden mode — fuchsia theme) */}
+          {level.config?.id === "lv4" && (!level.cleared || progMode) && (
+            <div className="flex flex-col items-center gap-1.5 rounded-2xl bg-gradient-to-b from-fuchsia-500/95 to-purple-600/95 px-5 py-3 shadow-xl ring-2 ring-fuchsia-300/60 backdrop-blur">
+              <div className="flex items-baseline gap-2 text-white">
+                <span className="text-xs font-bold tracking-wide text-white/80">{t("coinCountLabel")}</span>
+                <span className="text-3xl font-black leading-none">{level.coinsHeld}</span>
+              </div>
+              <div className="flex flex-wrap justify-center gap-2">
+                {level.goals.map((g, i) => {
+                  const remain = level.goalsRemaining[i] ?? 0;
+                  const done = remain === 0;
+                  return (
+                    <span
+                      key={i}
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ${
+                        done
+                          ? "bg-emerald-300/90 text-emerald-950 ring-emerald-200/80"
+                          : "bg-white/20 text-white ring-white/30"
+                      }`}
+                    >
+                      {t("goalLabelPrefix")}{String.fromCharCode(65 + i)}: {done ? t("goalDone") : `${t("goalRemainLabel")} ${remain}`}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {/* Theme text — only when no challenge is set */}
           {level.challenge === null && (!level.cleared || progMode) && level.config && (
             <div className="text-xl font-bold text-yellow-300 drop-shadow-md" style={{ textShadow: "0 0 10px rgba(255,200,0,0.6)" }}>
@@ -775,7 +811,7 @@ export default function Ball() {
       {/* Footer — NFC status + NTAG save */}
       <div className="absolute bottom-0 left-0 right-0 z-10 flex items-center px-4 py-2 bg-black/50 backdrop-blur">
         <div className="flex-1 flex gap-1">
-          {!progMode && Object.keys(LEVELS).map((id) => (
+          {!progMode && Object.keys(LEVELS).filter((id) => id !== "lv4").map((id) => (
             <button
               key={id}
               onClick={() => {
@@ -797,6 +833,19 @@ export default function Ball() {
               <kbd className="ml-1 rounded bg-white/15 px-1 py-0.5 text-[9px] font-mono opacity-60">{`F${Object.keys(LEVELS).indexOf(id) + 1}`}</kbd>
             </button>
           ))}
+          {/* Hidden Lv4 — only visible when active (reachable via F4 only) */}
+          {!progMode && level.levelId === "lv4" && (
+            <button
+              onClick={() => {
+                const center = level.deactivate();
+                setGridPos(center);
+              }}
+              className="rounded px-2 py-0.5 text-xs font-bold bg-fuchsia-500 text-white shadow-[0_0_12px_rgba(232,121,249,0.6)] ring-1 ring-fuchsia-300 transition hover:bg-fuchsia-400"
+            >
+              {td(LEVELS.lv4.labelKey)}
+              <kbd className="ml-1 rounded bg-white/20 px-1 py-0.5 text-[9px] font-mono opacity-80">F4</kbd>
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2 text-xs font-medium text-white/80">
           <InfoButton onClick={() => setShowInfo(true)} />
@@ -898,8 +947,31 @@ export default function Ball() {
           <>
             <CellMarker col={level.start.col} row={level.start.row} color="#44cc44" gridSize={level.gridSize} />
             <TextSprite col={level.start.col} row={level.start.row} text={t("start")} color="#44cc44" gridSize={level.gridSize} />
-            <CellMarker col={level.goal.col} row={level.goal.row} color="#ffaa00" gridSize={level.gridSize} />
-            <TextSprite col={level.goal.col} row={level.goal.row} text={t("goal")} color="#ffaa00" gridSize={level.gridSize} />
+            {level.config?.id !== "lv4" && (
+              <>
+                <CellMarker col={level.goal.col} row={level.goal.row} color="#ffaa00" gridSize={level.gridSize} />
+                <TextSprite col={level.goal.col} row={level.goal.row} text={t("goal")} color="#ffaa00" gridSize={level.gridSize} />
+              </>
+            )}
+            {level.config?.id === "lv4" && level.goals.map((g, i) => {
+              const remain = level.goalsRemaining[i] ?? 0;
+              const done = remain === 0;
+              const color = done ? "#44cc44" : "#ffaa00";
+              const label = `${t("goalLabelPrefix")}${String.fromCharCode(65 + i)}`;
+              return (
+                <group key={`gl-${i}`}>
+                  <CellMarker col={g.col} row={g.row} color={color} gridSize={level.gridSize} />
+                  <GoalRequirementSprite
+                    col={g.col}
+                    row={g.row}
+                    label={label}
+                    remaining={remain}
+                    done={done}
+                    gridSize={level.gridSize}
+                  />
+                </group>
+              );
+            })}
           </>
         )}
         {level.active && (
@@ -909,6 +981,15 @@ export default function Ball() {
             ))}
             {level.branchCells.map((bc, i) => (
               <BranchMarker key={`br-${i}`} branchCell={bc} gridSize={level.gridSize} />
+            ))}
+            {level.config?.id === "lv4" && level.coins.map((c, i) => (
+              <CoinMarker
+                key={`cn-${i}`}
+                col={c.col}
+                row={c.row}
+                collected={level.coinsCollected[i] ?? false}
+                gridSize={level.gridSize}
+              />
             ))}
           </>
         )}

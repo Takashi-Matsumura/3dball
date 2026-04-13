@@ -68,6 +68,7 @@ const LEVEL_ITEMS: LevelItem[] = [
     key: "welcomeLv3Desc",
     contentKey: "lv3",
   },
+  // Lv4 is intentionally omitted — it's a hidden stage reachable only via F4.
 ];
 
 const CONTROL_ITEMS: { icon: (p: { className?: string }) => React.ReactElement; accent: string; bg: string; key: string }[] = [

@@ -7,6 +7,8 @@ export interface LevelConfig {
   hasChallenge: boolean;
   obstacleCount?: { min: number; max: number };
   branchCount?: { min: number; max: number };
+  goalCount?: number;
+  coinTotal?: { min: number; max: number };
   /** i18n key for theme text (e.g. "lv1Theme") */
   themeKey: string;
   /** i18n key for challenge theme text (e.g. "lv1ChallengeTheme") */
@@ -22,10 +24,17 @@ export interface BranchCell {
   verticalBranch: "LEFT" | "RIGHT";   // arriving vertically → branch horizontally
 }
 
+export interface GoalSpec {
+  col: number;
+  row: number;
+  required: number;
+}
+
 export const LEVELS: Record<string, LevelConfig> = {
   lv1: { id: "lv1", gridSize: 3, minDistance: 2, hasChallenge: true, themeKey: "lv1Theme", challengeThemeKey: "lv1ChallengeTheme", labelKey: "lv1" },
   lv2: { id: "lv2", gridSize: 5, minDistance: 4, hasChallenge: true, obstacleCount: { min: 2, max: 4 }, themeKey: "lv2Theme", challengeThemeKey: "lv2ChallengeTheme", labelKey: "lv2" },
   lv3: { id: "lv3", gridSize: 5, minDistance: 4, hasChallenge: false, branchCount: { min: 1, max: 1 }, themeKey: "lv3Theme", challengeThemeKey: "lv3ChallengeTheme", labelKey: "lv3" },
+  lv4: { id: "lv4", gridSize: 7, minDistance: 3, hasChallenge: false, goalCount: 2, coinTotal: { min: 3, max: 5 }, obstacleCount: { min: 3, max: 5 }, themeKey: "lv4Theme", challengeThemeKey: "lv4ChallengeTheme", labelKey: "lv4" },
 };
 
 export type GridPos = { col: number; row: number };
@@ -140,11 +149,152 @@ export function generateBranchCells(
 }
 
 /** Generate start, goal, obstacles, and branch cells for a level */
-export function generateLevel(config: LevelConfig): { start: GridPos; goal: GridPos; obstacles: GridPos[]; branchCells: BranchCell[] } {
+export function generateLevel(config: LevelConfig): {
+  start: GridPos;
+  goal: GridPos;
+  obstacles: GridPos[];
+  branchCells: BranchCell[];
+  goals?: GoalSpec[];
+  coins?: GridPos[];
+} {
+  if (config.id === "lv4") {
+    const layout = generateLv4Layout(config);
+    return {
+      start: layout.start,
+      goal: layout.goals[0],
+      obstacles: layout.obstacles,
+      branchCells: [],
+      goals: layout.goals,
+      coins: layout.coins,
+    };
+  }
   const { start, goal } = generateStartGoal(config);
   const obstacles = generateObstacles(config, start, goal);
   const branchCells = generateBranchCells(config, start, goal, obstacles);
   return { start, goal, obstacles, branchCells };
+}
+
+/** Generate a Lv4 layout: start + multiple goals (with required counts) + coins + obstacles.
+ *  Obstacle placement is BFS-validated so every coin and goal remains reachable from start. */
+export function generateLv4Layout(config: LevelConfig): { start: GridPos; goals: GoalSpec[]; coins: GridPos[]; obstacles: GridPos[] } {
+  const { gridSize, minDistance } = config;
+  const goalCount = config.goalCount ?? 2;
+  const coinRange = config.coinTotal ?? { min: 3, max: 5 };
+  const obstacleRange = config.obstacleCount;
+
+  const all: GridPos[] = [];
+  for (let r = 0; r < gridSize; r++)
+    for (let c = 0; c < gridSize; c++) all.push({ col: c, row: r });
+
+  const dist = (a: GridPos, b: GridPos) => Math.abs(a.col - b.col) + Math.abs(a.row - b.row);
+
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const start = all[Math.floor(Math.random() * all.length)];
+    const goalCandidates = all.filter((p) => dist(p, start) >= minDistance);
+    if (goalCandidates.length < goalCount) continue;
+
+    const goals: GridPos[] = [];
+    const pool = [...goalCandidates];
+    let ok = true;
+    for (let g = 0; g < goalCount; g++) {
+      const avail = pool.filter((p) => goals.every((gp) => dist(p, gp) >= 2));
+      if (avail.length === 0) { ok = false; break; }
+      const pick = avail[Math.floor(Math.random() * avail.length)];
+      goals.push(pick);
+      const idx = pool.findIndex((p) => p.col === pick.col && p.row === pick.row);
+      if (idx >= 0) pool.splice(idx, 1);
+    }
+    if (!ok) continue;
+
+    // Assign required counts per goal (each 1..3, sum in coinRange).
+    const total = coinRange.min + Math.floor(Math.random() * (coinRange.max - coinRange.min + 1));
+    const reqs = distributeRequired(total, goalCount);
+    if (!reqs) continue;
+    const goalSpecs: GoalSpec[] = goals.map((g, i) => ({ col: g.col, row: g.row, required: reqs[i] }));
+
+    // Place coins equal to total, avoiding start and goals.
+    const blocked = new Set<string>();
+    blocked.add(`${start.col},${start.row}`);
+    for (const g of goals) blocked.add(`${g.col},${g.row}`);
+    const coinPool = all.filter((p) => !blocked.has(`${p.col},${p.row}`));
+    if (coinPool.length < total) continue;
+    const coins: GridPos[] = [];
+    const coinUsed = new Set<string>();
+    for (let i = 0; i < total; i++) {
+      const remaining = coinPool.filter((p) => !coinUsed.has(`${p.col},${p.row}`));
+      if (remaining.length === 0) break;
+      const pick = remaining[Math.floor(Math.random() * remaining.length)];
+      coins.push(pick);
+      coinUsed.add(`${pick.col},${pick.row}`);
+    }
+    if (coins.length !== total) continue;
+
+    // Place obstacles, ensuring all coins/goals remain reachable from start.
+    const obstacles = obstacleRange
+      ? placeLv4Obstacles(gridSize, start, goals, coins, obstacleRange)
+      : [];
+
+    return { start, goals: goalSpecs, coins, obstacles };
+  }
+  // Fallback: simple layout
+  const start = { col: 0, row: 0 };
+  const goals: GoalSpec[] = [
+    { col: gridSize - 1, row: 0, required: 2 },
+    { col: gridSize - 1, row: gridSize - 1, required: 2 },
+  ];
+  const coins: GridPos[] = [
+    { col: 1, row: 1 }, { col: 2, row: 2 }, { col: 3, row: 3 }, { col: 4, row: 4 },
+  ];
+  return { start, goals, coins, obstacles: [] };
+}
+
+/** Place obstacles on the Lv4 grid while preserving reachability of every coin and goal from start. */
+function placeLv4Obstacles(
+  gridSize: number,
+  start: GridPos,
+  goals: GridPos[],
+  coins: GridPos[],
+  range: { min: number; max: number },
+): GridPos[] {
+  const count = range.min + Math.floor(Math.random() * (range.max - range.min + 1));
+  const all: GridPos[] = [];
+  for (let r = 0; r < gridSize; r++)
+    for (let c = 0; c < gridSize; c++) all.push({ col: c, row: r });
+
+  const reserved = new Set<string>();
+  reserved.add(`${start.col},${start.row}`);
+  for (const g of goals) reserved.add(`${g.col},${g.row}`);
+  for (const c of coins) reserved.add(`${c.col},${c.row}`);
+
+  const checkReachable = (obs: GridPos[]): boolean => {
+    for (const g of goals) if (!hasPath(start, g, gridSize, obs)) return false;
+    for (const c of coins) if (!hasPath(start, c, gridSize, obs)) return false;
+    return true;
+  };
+
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const pool = all.filter((p) => !reserved.has(`${p.col},${p.row}`));
+    const obstacles: GridPos[] = [];
+    for (let i = 0; i < count && pool.length > 0; i++) {
+      const idx = Math.floor(Math.random() * pool.length);
+      const pick = pool.splice(idx, 1)[0];
+      obstacles.push(pick);
+    }
+    if (obstacles.length === count && checkReachable(obstacles)) return obstacles;
+  }
+  return [];
+}
+
+/** Distribute `total` into `n` parts, each in [1, 3]. Returns null if infeasible. */
+function distributeRequired(total: number, n: number): number[] | null {
+  if (total < n || total > n * 3) return null;
+  const parts = new Array(n).fill(1);
+  let remaining = total - n;
+  while (remaining > 0) {
+    const idx = Math.floor(Math.random() * n);
+    if (parts[idx] < 3) { parts[idx]++; remaining--; }
+  }
+  return parts;
 }
 
 /** Generate random start/goal positions for a level */
@@ -292,6 +442,38 @@ export function encodeBranchCells(cells: BranchCell[]): string {
   }).join("");
 }
 
+/** Encode coins to compact string (same format as obstacles): "0102" = col0row1, col0row2 */
+export function encodeCoins(coins: GridPos[]): string {
+  return coins.map((c) => `${c.col}${c.row}`).join("");
+}
+
+/** Decode coins from compact string */
+export function decodeCoins(encoded: string): GridPos[] {
+  const coins: GridPos[] = [];
+  for (let i = 0; i + 1 < encoded.length; i += 2) {
+    coins.push({ col: Number(encoded[i]), row: Number(encoded[i + 1]) });
+  }
+  return coins;
+}
+
+/** Encode Lv4 goals: "042624" = goal(0,4) req 2, goal(6,2) req 4 (3 chars per goal: col,row,req) */
+export function encodeGoals(goals: GoalSpec[]): string {
+  return goals.map((g) => `${g.col}${g.row}${g.required}`).join("");
+}
+
+/** Decode Lv4 goals */
+export function decodeGoals(encoded: string): GoalSpec[] {
+  const goals: GoalSpec[] = [];
+  for (let i = 0; i + 2 < encoded.length; i += 3) {
+    goals.push({
+      col: Number(encoded[i]),
+      row: Number(encoded[i + 1]),
+      required: Number(encoded[i + 2]),
+    });
+  }
+  return goals;
+}
+
 /** Decode branch cells from compact string */
 export function decodeBranchCells(encoded: string): BranchCell[] {
   const cells: BranchCell[] = [];
@@ -327,6 +509,8 @@ export function buildLevelNtagParams(
   challenge: number | null,
   obstacles: GridPos[] = [],
   branchCells: BranchCell[] = [],
+  goals: GoalSpec[] = [],
+  coins: GridPos[] = [],
 ): Record<string, string> {
   const params: Record<string, string> = {
     lv: config.id,
@@ -338,5 +522,7 @@ export function buildLevelNtagParams(
   if (challenge !== null) params.ch = String(challenge);
   if (obstacles.length > 0) params.ob = encodeObstacles(obstacles);
   if (branchCells.length > 0) params.br = encodeBranchCells(branchCells);
+  if (goals.length > 0) params.gs = encodeGoals(goals);
+  if (coins.length > 0) params.cn = encodeCoins(coins);
   return params;
 }

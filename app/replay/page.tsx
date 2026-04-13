@@ -1,5 +1,5 @@
 import { decodeProgram } from "@/lib/program";
-import { LEVELS, decodeObstacles, decodeBranchCells } from "@/lib/levels";
+import { LEVELS, decodeObstacles, decodeBranchCells, decodeGoals, decodeCoins } from "@/lib/levels";
 import ReplayScene from "./ReplayScene";
 
 export default async function ReplayPage({
@@ -23,6 +23,8 @@ export default async function ReplayPage({
   const ch = typeof params.ch === "string" ? params.ch : "";
   const ob = typeof params.ob === "string" ? params.ob : "";
   const br = typeof params.br === "string" ? params.br : "";
+  const gs = typeof params.gs === "string" ? params.gs : "";
+  const cn = typeof params.cn === "string" ? params.cn : "";
 
   const steps = decodeProgram(p);
 
@@ -44,6 +46,8 @@ export default async function ReplayPage({
   const gridSize = levelConfig?.gridSize ?? 3;
   const obstacles = ob ? decodeObstacles(ob) : [];
   const branchCells = br ? decodeBranchCells(br) : [];
+  const goals = gs ? decodeGoals(gs) : [];
+  const coins = cn ? decodeCoins(cn) : [];
 
   return (
     <ReplayScene
@@ -56,7 +60,9 @@ export default async function ReplayPage({
       gridSize={hasLevel ? gridSize : undefined}
       obstacles={obstacles}
       branchCells={branchCells}
+      lv4Data={lv === "lv4" && goals.length > 0 ? { goals, coins } : undefined}
       levelInfo={hasLevel ? {
+        levelId: lv || undefined,
         start: { col: Number(sc), row: Number(sr) },
         goal: { col: Number(gc), row: Number(gr) },
         challenge: ch ? Number(ch) : undefined,

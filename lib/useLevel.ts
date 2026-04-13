@@ -6,6 +6,7 @@ import {
   LEVELS,
   GridPos,
   BranchCell,
+  GoalSpec,
   generateLevel,
   generateChallengeCount,
   gridCenter,
@@ -15,6 +16,7 @@ import {
   buildLevelNtagParams,
   resolveBranchDir,
 } from "@/lib/levels";
+import { playNfcScan, playBranch } from "@/lib/sounds";
 
 export interface LevelState {
   // State
@@ -25,6 +27,11 @@ export interface LevelState {
   goal: GridPos;
   obstacles: GridPos[];
   branchCells: BranchCell[];
+  goals: GoalSpec[];
+  coins: GridPos[];
+  coinsCollected: boolean[];
+  coinsHeld: number;
+  goalsRemaining: number[];
   lastMoveDirection: string | null;
   cleared: boolean;
   challenge: number | null;
@@ -45,6 +52,9 @@ export interface LevelState {
   onFreeMove: (pos: GridPos, isAnimating: boolean) => "success" | "burst" | null;
   /** Count a move (call when gridPos changes) */
   countMove: (pos: GridPos) => void;
+  /** Handle arrival at a cell: collect coin / deliver to goal (Lv4).
+   *  Returns true if this arrival cleared the level. */
+  onCellArrival: (pos: GridPos) => boolean;
   /** Manually increment move counter (e.g. for JUMP which doesn't change position) */
   addMove: () => void;
   /** Check program run result. `extraActions` is added to tracked moves (e.g. JUMPs not counted via position). */
@@ -69,6 +79,16 @@ export function useLevel(): LevelState {
   const [goal, setGoal] = useState<GridPos>({ col: 2, row: 2 });
   const [obstacles, setObstacles] = useState<GridPos[]>([]);
   const [branchCells, setBranchCells] = useState<BranchCell[]>([]);
+  const [goals, setGoals] = useState<GoalSpec[]>([]);
+  const [coins, setCoins] = useState<GridPos[]>([]);
+  const [coinsCollected, setCoinsCollected] = useState<boolean[]>([]);
+  const [coinsHeld, setCoinsHeld] = useState(0);
+  const [goalsRemaining, setGoalsRemaining] = useState<number[]>([]);
+  const goalsRef = useRef<GoalSpec[]>([]);
+  const coinsRef = useRef<GridPos[]>([]);
+  const coinsCollectedRef = useRef<boolean[]>([]);
+  const coinsHeldRef = useRef(0);
+  const goalsRemainingRef = useRef<number[]>([]);
   const lastMoveDirRef = useRef<string | null>(null);
   const [cleared, setCleared] = useState(false);
   const [challenge, setChallenge] = useState<number | null>(null);
@@ -84,16 +104,44 @@ export function useLevel(): LevelState {
   const active = levelId !== null;
   const gridSize = config?.gridSize ?? 3;
 
+  const applyLv4State = useCallback((gs: GoalSpec[], cs: GridPos[]) => {
+    const reqs = gs.map((g) => g.required);
+    const collected = cs.map(() => false);
+    setGoals(gs);
+    setCoins(cs);
+    setGoalsRemaining(reqs);
+    setCoinsCollected(collected);
+    setCoinsHeld(0);
+    goalsRef.current = gs;
+    coinsRef.current = cs;
+    goalsRemainingRef.current = reqs;
+    coinsCollectedRef.current = collected;
+    coinsHeldRef.current = 0;
+  }, []);
+
+  const resetLv4Progress = useCallback(() => {
+    const reqs = goalsRef.current.map((g) => g.required);
+    const collected = coinsRef.current.map(() => false);
+    setGoalsRemaining(reqs);
+    setCoinsCollected(collected);
+    setCoinsHeld(0);
+    goalsRemainingRef.current = reqs;
+    coinsCollectedRef.current = collected;
+    coinsHeldRef.current = 0;
+  }, []);
+
   const activate = useCallback((id: string): GridPos => {
     const cfg = LEVELS[id];
     if (!cfg) return gridCenter(3);
     setLevelId(id);
     setConfig(cfg);
-    const { start: s, goal: g, obstacles: obs, branchCells: br } = generateLevel(cfg);
+    const { start: s, goal: g, obstacles: obs, branchCells: br, goals: gs, coins: cs } = generateLevel(cfg);
     setStart(s);
     setGoal(g);
     setObstacles(obs);
     setBranchCells(br);
+    if (cfg.id === "lv4" && gs && cs) applyLv4State(gs, cs);
+    else applyLv4State([], []);
     lastMoveDirRef.current = null;
     setCleared(false);
     setChallenge(null);
@@ -102,28 +150,31 @@ export function useLevel(): LevelState {
     movesRef.current = 0;
     prevPosRef.current = s;
     return s;
-  }, []);
+  }, [applyLv4State]);
 
   const deactivate = useCallback((): GridPos => {
     setLevelId(null);
     setConfig(null);
     setObstacles([]);
     setBranchCells([]);
+    applyLv4State([], []);
     lastMoveDirRef.current = null;
     setCleared(false);
     setChallenge(null);
     setBursting(false);
     setBranchUsed(false);
     return gridCenter(3);
-  }, []);
+  }, [applyLv4State]);
 
   const generate = useCallback((): GridPos => {
     if (!config) return gridCenter(3);
-    const { start: s, goal: g, obstacles: obs, branchCells: br } = generateLevel(config);
+    const { start: s, goal: g, obstacles: obs, branchCells: br, goals: gs, coins: cs } = generateLevel(config);
     setStart(s);
     setGoal(g);
     setObstacles(obs);
     setBranchCells(br);
+    if (config.id === "lv4" && gs && cs) applyLv4State(gs, cs);
+    else applyLv4State([], []);
     lastMoveDirRef.current = null;
     setCleared(false);
     setChallenge(null);
@@ -132,7 +183,7 @@ export function useLevel(): LevelState {
     movesRef.current = 0;
     prevPosRef.current = s;
     return s;
-  }, [config]);
+  }, [config, applyLv4State]);
 
   const newChallenge = useCallback((): GridPos => {
     if (!config) return gridCenter(3);
@@ -165,8 +216,9 @@ export function useLevel(): LevelState {
     setBranchUsed(false);
     movesRef.current = 0;
     prevPosRef.current = start;
+    resetLv4Progress();
     return { startPos: start };
-  }, [start]);
+  }, [start, resetLv4Progress]);
 
   const countMove = useCallback((pos: GridPos) => {
     const prev = prevPosRef.current;
@@ -195,13 +247,60 @@ export function useLevel(): LevelState {
     setMoves(next);
   }, []);
 
+  const onCellArrival = useCallback((pos: GridPos): boolean => {
+    if (!config || config.id !== "lv4") return false;
+    if (clearedRef.current) return false;
+    // Coin pickup
+    const coinIdx = coinsRef.current.findIndex(
+      (c, i) => c.col === pos.col && c.row === pos.row && !coinsCollectedRef.current[i],
+    );
+    if (coinIdx >= 0) {
+      const nextCollected = [...coinsCollectedRef.current];
+      nextCollected[coinIdx] = true;
+      coinsCollectedRef.current = nextCollected;
+      setCoinsCollected(nextCollected);
+      const nextHeld = coinsHeldRef.current + 1;
+      coinsHeldRef.current = nextHeld;
+      setCoinsHeld(nextHeld);
+      playNfcScan();
+    }
+    // Goal delivery
+    const goalIdx = goalsRef.current.findIndex((g) => g.col === pos.col && g.row === pos.row);
+    if (goalIdx >= 0) {
+      const remaining = goalsRemainingRef.current[goalIdx];
+      if (remaining > 0 && coinsHeldRef.current > 0) {
+        const delivered = Math.min(coinsHeldRef.current, remaining);
+        const nextRemaining = [...goalsRemainingRef.current];
+        nextRemaining[goalIdx] = remaining - delivered;
+        goalsRemainingRef.current = nextRemaining;
+        setGoalsRemaining(nextRemaining);
+        const nextHeld = coinsHeldRef.current - delivered;
+        coinsHeldRef.current = nextHeld;
+        setCoinsHeld(nextHeld);
+        playBranch();
+        // Clear when all goals fulfilled
+        if (nextRemaining.every((r) => r === 0)) {
+          clearedRef.current = true;
+          setCleared(true);
+          return true;
+        }
+      }
+    }
+    return false;
+  }, [config]);
+
   const onFreeMove = useCallback((pos: GridPos, isAnimating: boolean): "success" | "burst" | null => {
     if (!config || cleared || bursting || isAnimating) return null;
+    // Lv4 clear is decided by onCellArrival (all goals filled), not by touching a single goal cell.
+    if (config.id === "lv4") return null;
     return checkMoveResult(config, pos, goal, movesRef.current, challenge, branchUsed);
   }, [config, goal, cleared, bursting, challenge, branchUsed]);
 
   const checkRunResult = useCallback((finalPos: GridPos, passedGoal: boolean, runBranchUsed: boolean = false, extraActions: number = 0): "success" | "burst" | "none" => {
     if (!config) return "none";
+    if (config.id === "lv4") {
+      return goalsRemainingRef.current.every((r) => r === 0) ? "success" : "burst";
+    }
     const totalMoves = movesRef.current + extraActions;
     if (checkProgramResult(config, finalPos, goal, passedGoal, runBranchUsed, totalMoves, challenge)) return "success";
     return "burst";
@@ -219,8 +318,9 @@ export function useLevel(): LevelState {
     movesRef.current = 0;
     lastMoveDirRef.current = null;
     prevPosRef.current = start;
+    resetLv4Progress();
     return start;
-  }, [start]);
+  }, [start, resetLv4Progress]);
 
   const checkBranch = useCallback((pos: GridPos): { isBranch: boolean; branchDir: string | null } => {
     const dir = lastMoveDirRef.current;
@@ -232,8 +332,8 @@ export function useLevel(): LevelState {
 
   const getNtagParams = useCallback((): Record<string, string> => {
     if (!config) return {};
-    return buildLevelNtagParams(config, start, goal, challenge, obstacles, branchCells);
-  }, [config, start, goal, challenge, obstacles, branchCells]);
+    return buildLevelNtagParams(config, start, goal, challenge, obstacles, branchCells, goals, coins);
+  }, [config, start, goal, challenge, obstacles, branchCells, goals, coins]);
 
   return {
     active,
@@ -243,6 +343,11 @@ export function useLevel(): LevelState {
     goal,
     obstacles,
     branchCells,
+    goals,
+    coins,
+    coinsCollected,
+    coinsHeld,
+    goalsRemaining,
     lastMoveDirection: lastMoveDirRef.current,
     cleared,
     challenge,
@@ -258,6 +363,7 @@ export function useLevel(): LevelState {
     resetForRun,
     onFreeMove,
     countMove,
+    onCellArrival,
     addMove,
     checkRunResult,
     isPassthrough,
