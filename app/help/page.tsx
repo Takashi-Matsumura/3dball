@@ -92,7 +92,7 @@ export default function HelpPage() {
   const { locale, setLocale, td } = useI18n();
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-800">
+    <div className="relative min-h-screen overflow-x-clip bg-slate-50 text-slate-800">
       {/* Decorative background glow */}
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[620px] -z-0">
         <div className="absolute left-1/2 top-[-180px] h-[560px] w-[900px] -translate-x-1/2 rounded-full bg-gradient-to-br from-sky-200/60 via-violet-200/40 to-emerald-200/40 blur-3xl" />
