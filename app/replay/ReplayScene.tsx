@@ -8,7 +8,7 @@ import {
 } from "@/lib/ball-shared";
 import { GridPos, BranchCell } from "@/lib/levels";
 import { SceneLighting, CameraController, Board, Ground, Sphere, CellMarker, TextSprite, ObstacleMarker, BranchMarker } from "@/app/components/Scene";
-import { playSuccess } from "@/lib/sounds";
+import { playSuccess, playBurst } from "@/lib/sounds";
 import { useProgramRunner } from "@/lib/useProgramRunner";
 
 interface LevelInfo {
@@ -34,10 +34,12 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
   const gridSize = gridSizeProp ?? 3;
   const startPos = levelInfo ? levelInfo.start : { col: 1, row: 1 };
   const runner = useProgramRunner();
-  const { gridPos, jumping, progIndex, handleAnimDone, handleJumpDone } = runner;
+  const { gridPos, jumping, celebrating, progIndex, handleAnimDone, handleJumpDone, handleCelebrateDone, triggerCelebrate } = runner;
   const [levelCleared, setLevelCleared] = useState(false);
   const [is2D, setIs2D] = useState(false);
   const [finished, setFinished] = useState(false);
+  const [bursting, setBursting] = useState(false);
+  const burstDoneResolveRef = useRef<(() => void) | null>(null);
   const stepsRef = useRef<HTMLDivElement>(null);
 
   const patternConfig: PatternConfig = {
@@ -57,6 +59,7 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
   const runProgram = useCallback(async (reverseBranch: boolean = false) => {
     setFinished(false);
     setLevelCleared(false);
+    setBursting(false);
 
     const isPassthrough = levelInfo
       ? (pos: { col: number; row: number }, i: number, total: number) =>
@@ -74,12 +77,29 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
     });
 
     setFinished(true);
-    if (levelInfo && !passedGoal &&
-        finalPos.col === levelInfo.goal.col && finalPos.row === levelInfo.goal.row) {
+    const reachedGoal = !!levelInfo && !passedGoal &&
+      finalPos.col === levelInfo.goal.col && finalPos.row === levelInfo.goal.row;
+
+    if (!levelInfo) {
+      playSuccess();
+    } else if (reachedGoal) {
       setLevelCleared(true);
+      playSuccess();
+      await triggerCelebrate();
+    } else {
+      setBursting(true);
+      playBurst();
+      await new Promise<void>((resolve) => { burstDoneResolveRef.current = resolve; });
     }
-    playSuccess();
-  }, [steps, startPos, levelInfo, gridSize, obstacles, branchCells, runner]);
+  }, [steps, startPos, levelInfo, gridSize, obstacles, branchCells, runner, triggerCelebrate]);
+
+  const handleBurstDone = useCallback(() => {
+    setBursting(false);
+    if (burstDoneResolveRef.current) {
+      burstDoneResolveRef.current();
+      burstDoneResolveRef.current = null;
+    }
+  }, []);
 
   // Auto-play on mount
   useEffect(() => {
@@ -180,7 +200,7 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
         {/* 3D/2D toggle */}
         <button
           onClick={() => setIs2D((v) => !v)}
-          className="rounded-lg bg-white/95 px-3 py-2 text-sm font-medium text-black shadow-md backdrop-blur border border-gray-200 transition hover:bg-white"
+          className="rounded-xl bg-white/95 px-6 py-3 text-base font-bold text-black shadow-xl backdrop-blur border border-gray-200 transition hover:bg-white hover:scale-105"
         >
           {is2D ? "3D" : "2D"}
         </button>
@@ -209,8 +229,12 @@ export default function ReplayScene({ steps, color1, color2, scale, pattern, cre
           gridCol={gridPos.col}
           gridRow={gridPos.row}
           jumping={jumping}
+          bursting={bursting}
+          celebrating={celebrating}
           onAnimDone={handleAnimDone}
           onJumpDone={handleJumpDone}
+          onBurstDone={handleBurstDone}
+          onCelebrateDone={handleCelebrateDone}
           patternConfig={patternConfig}
           gridSize={gridSize}
         />

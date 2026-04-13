@@ -28,6 +28,8 @@ import {
 import { NtagWriteModal } from "@/app/components/NtagWriteModal";
 import { SettingsPanel } from "@/app/components/SettingsPanel";
 import { ProgrammingPanel } from "@/app/components/ProgrammingPanel";
+import ReplayScene from "@/app/replay/ReplayScene";
+import type { GridPos, BranchCell } from "@/lib/levels";
 
 export default function Ball() {
   const { t, td } = useI18n();
@@ -66,6 +68,17 @@ export default function Ball() {
   const [ntagWriting, setNtagWriting] = useState(false);
   const [ntagResult, setNtagResult] = useState<"success" | "error" | null>(null);
 
+  // Replay overlay (shown after successful NTAG write, in-page instead of new tab)
+  const [replaySnapshot, setReplaySnapshot] = useState<{
+    steps: string[];
+    patternConfig: PatternConfig;
+    createdAt: number;
+    gridSize?: number;
+    obstacles: GridPos[];
+    branchCells: BranchCell[];
+    levelInfo?: { start: GridPos; goal: GridPos; challenge?: number };
+  } | null>(null);
+
   // Auto-demo (attract mode): only on Playground, when no other overlays are active.
   // Note: isAnimating/jumping are intentionally excluded because the demo itself
   // toggles them — including them would make the demo abort its own animations.
@@ -75,7 +88,8 @@ export default function Ball() {
     !progRunning &&
     !showSettings &&
     !showInfo &&
-    !showNtagModal;
+    !showNtagModal &&
+    !replaySnapshot;
   const { demoActive, demoAction, startDemo, cancelDemo } = useDemoMode({
     enabled: demoEnabled,
     gridSize: level.gridSize,
@@ -318,9 +332,25 @@ export default function Ball() {
       const data = await res.json();
       if (data.success) {
         setNtagResult("success");
-        const previewUrl = `${window.location.origin}/replay?${params.toString()}`;
-        window.open(previewUrl, "_blank");
-        setTimeout(() => setShowNtagModal(false), 1500);
+        const snapshot = {
+          steps: [...program],
+          patternConfig: { ...patternConfig },
+          createdAt: Date.now(),
+          gridSize: level.active ? level.gridSize : undefined,
+          obstacles: level.active ? [...level.obstacles] : [],
+          branchCells: level.active ? [...level.branchCells] : [],
+          levelInfo: level.active
+            ? {
+                start: level.start,
+                goal: level.goal,
+                challenge: level.challenge ?? undefined,
+              }
+            : undefined,
+        };
+        setTimeout(() => {
+          setShowNtagModal(false);
+          setReplaySnapshot(snapshot);
+        }, 1500);
       } else {
         setNtagResult("error");
       }
@@ -794,6 +824,32 @@ export default function Ball() {
           onCancel={handleCancelWrite}
           onClose={() => setShowNtagModal(false)}
         />
+      )}
+
+      {/* Replay overlay — in-page preview after NTAG write (keeps kiosk full-screen) */}
+      {replaySnapshot && (
+        <div className="fixed inset-0 z-40 bg-[#0d0d14]">
+          <ReplayScene
+            steps={replaySnapshot.steps}
+            color1={replaySnapshot.patternConfig.color1}
+            color2={replaySnapshot.patternConfig.color2}
+            scale={replaySnapshot.patternConfig.scale}
+            pattern={replaySnapshot.patternConfig.pattern}
+            createdAt={replaySnapshot.createdAt}
+            gridSize={replaySnapshot.gridSize}
+            obstacles={replaySnapshot.obstacles}
+            branchCells={replaySnapshot.branchCells}
+            levelInfo={replaySnapshot.levelInfo}
+          />
+          <button
+            onClick={() => setReplaySnapshot(null)}
+            className="absolute top-4 right-28 z-50 rounded-xl bg-white/95 px-6 py-3 text-base font-bold text-black shadow-xl backdrop-blur border border-gray-200 transition hover:bg-white hover:scale-105 flex items-center gap-2"
+            title={t("close") || "Close"}
+          >
+            <IconX className="w-4 h-4" />
+            <span>{t("close") || "Close"}</span>
+          </button>
+        </div>
       )}
 
       {/* Info overlay */}
