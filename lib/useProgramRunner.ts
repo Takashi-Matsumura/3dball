@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState, useCallback } from "react";
-import { moveGrid, expandProgramWithMap, isHorizontalDir } from "@/lib/ball-shared";
+import { moveGrid, isHorizontalDir } from "@/lib/ball-shared";
+import { expandProgramWithMap } from "@/lib/program";
 import { GridPos, BranchCell, resolveBranchDir } from "@/lib/levels";
 import { playMove, playJump, playBranch, playBump } from "@/lib/sounds";
 

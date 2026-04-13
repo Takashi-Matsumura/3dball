@@ -25,7 +25,7 @@ export interface BranchCell {
 export const LEVELS: Record<string, LevelConfig> = {
   lv1: { id: "lv1", gridSize: 3, minDistance: 2, hasChallenge: true, themeKey: "lv1Theme", challengeThemeKey: "lv1ChallengeTheme", labelKey: "lv1" },
   lv2: { id: "lv2", gridSize: 5, minDistance: 4, hasChallenge: true, obstacleCount: { min: 2, max: 4 }, themeKey: "lv2Theme", challengeThemeKey: "lv2ChallengeTheme", labelKey: "lv2" },
-  lv3: { id: "lv3", gridSize: 5, minDistance: 4, hasChallenge: false, branchCount: { min: 1, max: 2 }, themeKey: "lv3Theme", challengeThemeKey: "lv3ChallengeTheme", labelKey: "lv3" },
+  lv3: { id: "lv3", gridSize: 5, minDistance: 4, hasChallenge: false, branchCount: { min: 1, max: 1 }, themeKey: "lv3Theme", challengeThemeKey: "lv3ChallengeTheme", labelKey: "lv3" },
 };
 
 export type GridPos = { col: number; row: number };
@@ -113,26 +113,28 @@ export function generateBranchCells(
   used.add(`${start.col},${start.row}`);
   used.add(`${goal.col},${goal.row}`);
   for (const o of obstacles) used.add(`${o.col},${o.row}`);
-  // Exclude corners to reduce deadlock risk
-  const corners = [`0,0`, `0,${gridSize - 1}`, `${gridSize - 1},0`, `${gridSize - 1},${gridSize - 1}`];
-  for (const c of corners) used.add(c);
+
+  // Restrict branch cells to the inner 3x3 region so outer-ring placements
+  // can't create unavoidable deadlocks depending on arrival direction.
+  const innerMin = Math.max(1, Math.floor((gridSize - 3) / 2));
+  const innerMax = Math.min(gridSize - 2, innerMin + 2);
+  const candidates: GridPos[] = [];
+  for (let r = innerMin; r <= innerMax; r++) {
+    for (let c = innerMin; c <= innerMax; c++) {
+      if (!used.has(`${c},${r}`)) candidates.push({ col: c, row: r });
+    }
+  }
 
   const cells: BranchCell[] = [];
-  for (let i = 0; i < count; i++) {
-    for (let t = 0; t < 30; t++) {
-      const col = Math.floor(Math.random() * gridSize);
-      const row = Math.floor(Math.random() * gridSize);
-      const k = `${col},${row}`;
-      if (used.has(k)) continue;
-      used.add(k);
-      cells.push({
-        col,
-        row,
-        horizontalBranch: Math.random() < 0.5 ? "UP" : "DOWN",
-        verticalBranch: Math.random() < 0.5 ? "LEFT" : "RIGHT",
-      });
-      break;
-    }
+  for (let i = 0; i < count && candidates.length > 0; i++) {
+    const idx = Math.floor(Math.random() * candidates.length);
+    const pick = candidates.splice(idx, 1)[0];
+    cells.push({
+      col: pick.col,
+      row: pick.row,
+      horizontalBranch: Math.random() < 0.5 ? "UP" : "DOWN",
+      verticalBranch: Math.random() < 0.5 ? "LEFT" : "RIGHT",
+    });
   }
   return cells;
 }

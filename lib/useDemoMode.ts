@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { moveGrid, COLOR_PRESETS, PatternConfig } from "./ball-shared";
+import { GridPos } from "./levels";
 import { playMove, playJump } from "./sounds";
 
 const MOVE_ANIM_MS = 260;   // Matches Sphere animation duration
@@ -10,7 +11,6 @@ const JUMP_ANIM_MS = 500;
 const SCALE_MIN = 2;
 const SCALE_MAX = 20;
 
-type GridPos = { col: number; row: number };
 type DemoAction = "UP" | "DOWN" | "LEFT" | "RIGHT" | "JUMP";
 
 const DIRS: Exclude<DemoAction, "JUMP">[] = ["UP", "DOWN", "LEFT", "RIGHT"];

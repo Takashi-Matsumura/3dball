@@ -1,4 +1,4 @@
-import { decodeProgram } from "@/lib/ball-shared";
+import { decodeProgram } from "@/lib/program";
 import { LEVELS, decodeObstacles, decodeBranchCells } from "@/lib/levels";
 import ReplayScene from "./ReplayScene";
 

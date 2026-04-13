@@ -151,7 +151,6 @@ const translations = {
   shortcutF: { ja: "F1-F3 レベル", en: "F1-F3 Level", es: "F1-F3 Nivel" },
   shortcutI: { ja: "I インフォ", en: "I Info", es: "I Info" },
   shortcutEsc: { ja: "Esc レベル解除 / 2 回でデモ", en: "Esc Exit level / 2× for demo", es: "Esc Salir / 2× demo" },
-  shortcutLang: { ja: "J/E/N 言語", en: "J/E/N Language", es: "J/E/N Idioma" },
 
   // Welcome / Help page
   welcomeTitle: { ja: "3D Ball へようこそ！", en: "Welcome to 3D Ball!", es: "¡Bienvenido a 3D Ball!" },

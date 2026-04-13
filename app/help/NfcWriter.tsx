@@ -2,25 +2,26 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useI18n } from "@/lib/i18n";
+import { IconChevron, IconCheck } from "@/app/components/icons";
 
 interface ActionDef {
   id: string;
   labelKey: "dirUp" | "dirDown" | "dirLeft" | "dirRight" | "dirJump" | "dirX2" | "dirX3" | "dirBranch";
   icon: string;
-  bgColor: string;
-  borderColor: string;
-  textColor: string;
+  accent: string;
+  iconBg: string;
+  category: "direction" | "modifier" | "branch";
 }
 
 const ACTIONS: ActionDef[] = [
-  { id: "UP",     labelKey: "dirUp",     icon: "⬆",  bgColor: "bg-blue-100",   borderColor: "border-blue-400",   textColor: "text-blue-700" },
-  { id: "DOWN",   labelKey: "dirDown",   icon: "⬇",  bgColor: "bg-orange-100", borderColor: "border-orange-400", textColor: "text-orange-700" },
-  { id: "LEFT",   labelKey: "dirLeft",   icon: "⬅",  bgColor: "bg-purple-100", borderColor: "border-purple-400", textColor: "text-purple-700" },
-  { id: "RIGHT",  labelKey: "dirRight",  icon: "➡",  bgColor: "bg-green-100",  borderColor: "border-green-400",  textColor: "text-green-700" },
-  { id: "JUMP",   labelKey: "dirJump",   icon: "⤴",  bgColor: "bg-yellow-100", borderColor: "border-yellow-400", textColor: "text-yellow-700" },
-  { id: "X2",     labelKey: "dirX2",     icon: "×2", bgColor: "bg-pink-100",   borderColor: "border-pink-400",   textColor: "text-pink-700" },
-  { id: "X3",     labelKey: "dirX3",     icon: "×3", bgColor: "bg-red-100",    borderColor: "border-red-400",    textColor: "text-red-700" },
-  { id: "BRANCH", labelKey: "dirBranch", icon: "❓", bgColor: "bg-violet-100", borderColor: "border-violet-400", textColor: "text-violet-700" },
+  { id: "UP",     labelKey: "dirUp",     icon: "⬆",  accent: "text-blue-600",   iconBg: "bg-blue-50",   category: "direction" },
+  { id: "DOWN",   labelKey: "dirDown",   icon: "⬇",  accent: "text-orange-600", iconBg: "bg-orange-50", category: "direction" },
+  { id: "LEFT",   labelKey: "dirLeft",   icon: "⬅",  accent: "text-purple-600", iconBg: "bg-purple-50", category: "direction" },
+  { id: "RIGHT",  labelKey: "dirRight",  icon: "➡",  accent: "text-green-600",  iconBg: "bg-green-50",  category: "direction" },
+  { id: "JUMP",   labelKey: "dirJump",   icon: "⤴",  accent: "text-yellow-600", iconBg: "bg-yellow-50", category: "direction" },
+  { id: "X2",     labelKey: "dirX2",     icon: "×2", accent: "text-pink-600",   iconBg: "bg-pink-50",   category: "modifier" },
+  { id: "X3",     labelKey: "dirX3",     icon: "×3", accent: "text-rose-600",   iconBg: "bg-rose-50",   category: "modifier" },
+  { id: "BRANCH", labelKey: "dirBranch", icon: "❓", accent: "text-violet-600", iconBg: "bg-violet-50", category: "branch" },
 ];
 
 interface RegisteredCard {
@@ -30,6 +31,7 @@ interface RegisteredCard {
 
 export default function NfcWriter() {
   const { t } = useI18n();
+  const [open, setOpen] = useState(false);
   const [readerConnected, setReaderConnected] = useState(false);
   const [readerName, setReaderName] = useState("");
   const [registeredCards, setRegisteredCards] = useState<RegisteredCard[]>([]);
@@ -37,7 +39,6 @@ export default function NfcWriter() {
   const [resultMessage, setResultMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Poll reader status + registered cards
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
@@ -100,87 +101,127 @@ export default function NfcWriter() {
     setResultMessage(null);
   }, []);
 
-  const allRegistered = ACTIONS.every((a) => getCardUid(a.id));
+  const registeredCount = ACTIONS.filter((a) => getCardUid(a.id)).length;
+  const progressPct = (registeredCount / ACTIONS.length) * 100;
 
   return (
-    <div>
-        {/* Reader status */}
-        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-6 text-sm font-medium
-          ${readerConnected
-            ? "bg-green-50 border border-green-300 text-green-700"
-            : "bg-red-50 border border-red-300 text-red-700"
-          }`}
-        >
-          <span className={`inline-block w-3 h-3 rounded-full ${readerConnected ? "bg-green-500 animate-pulse" : "bg-red-400"}`} />
-          {readerConnected ? `${t("readerConnected")}${readerName}` : t("readerNotFound")}
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      {/* Collapsible header */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-3 px-5 py-4 hover:bg-slate-50 transition"
+        aria-expanded={open}
+      >
+        <span className="text-slate-500">
+          <IconChevron open={open} />
+        </span>
+        <div className="flex-1 text-left">
+          <div className="font-bold text-slate-800">{t("nfcCardSetup")}</div>
+          <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+            <span className={`inline-block w-2 h-2 rounded-full ${readerConnected ? "bg-emerald-500" : "bg-rose-400"}`} />
+            {readerConnected ? `${t("readerConnected")}${readerName}` : t("readerNotFound")}
+          </div>
         </div>
-
-        {/* Result message */}
-        {resultMessage && (
-          <div className={`px-4 py-3 rounded-xl mb-6 text-sm font-medium text-center
-            ${resultMessage.type === "success" ? "bg-green-100 text-green-700 border border-green-300" : "bg-red-100 text-red-700 border border-red-300"}
-          `}>
-            {resultMessage.text}
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-2">
+            <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-300"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
           </div>
-        )}
-
-        {/* Progress indicator */}
-        <div className="flex items-center gap-2 mb-4">
-          <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-green-500 transition-all duration-300 rounded-full"
-              style={{ width: `${(ACTIONS.filter((a) => getCardUid(a.id)).length / ACTIONS.length) * 100}%` }}
-            />
-          </div>
-          <span className="text-sm text-gray-500 font-medium">
-            {ACTIONS.filter((a) => getCardUid(a.id)).length} / {ACTIONS.length}
+          <span className="text-sm font-mono font-semibold text-slate-600">
+            {registeredCount}<span className="text-slate-400">/{ACTIONS.length}</span>
           </span>
         </div>
+      </button>
 
-        {/* Action cards — tile grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {ACTIONS.map((action) => {
-            const uid = getCardUid(action.id);
-            const isRegistering = registeringId === action.id;
+      {/* Collapsible body */}
+      {open && (
+        <div className="border-t border-slate-100">
+          {resultMessage && (
+            <div className={`mx-5 mt-4 px-4 py-2.5 rounded-lg text-sm font-medium
+              ${resultMessage.type === "success"
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : "bg-rose-50 text-rose-700 border border-rose-200"
+              }`}>
+              {resultMessage.text}
+            </div>
+          )}
 
-            return (
-              <div
-                key={action.id}
-                className={`flex flex-col items-center gap-2 px-3 py-4 rounded-xl border-2 transition-all ${
-                  uid ? `${action.bgColor} ${action.borderColor}` : "bg-white border-gray-200"
-                } ${isRegistering ? "ring-4 ring-yellow-300 animate-pulse" : ""}`}
-              >
-                <span className="text-4xl">{action.icon}</span>
-                <span className={`text-sm font-bold text-center ${uid ? action.textColor : "text-gray-400"}`}>
-                  {t(action.labelKey)}
-                </span>
-                {uid && (
-                  <span className="text-[10px] text-gray-400 font-mono truncate max-w-full">{uid}</span>
-                )}
-                {isRegistering ? (
-                  <button
-                    onClick={handleCancel}
-                    className="w-full px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-200 text-gray-600 hover:bg-gray-300 transition"
-                  >
-                    {t("cancel")}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleRegister(action)}
-                    disabled={!readerConnected || registeringId !== null}
-                    className={`w-full px-3 py-1.5 rounded-lg text-xs font-bold transition disabled:opacity-40 disabled:cursor-not-allowed ${
-                      uid
-                        ? "bg-white/80 text-gray-600 hover:bg-white border border-gray-300"
-                        : "bg-blue-500 text-white hover:bg-blue-600"
-                    }`}
-                  >
-                    {uid ? t("reRegister") : t("tapToRegister")}
-                  </button>
-                )}
-              </div>
-            );
-          })}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50 text-slate-500 uppercase text-[11px] tracking-wider">
+                  <th className="px-5 py-2.5 text-left font-semibold w-14">#</th>
+                  <th className="px-2 py-2.5 text-left font-semibold">Card</th>
+                  <th className="px-2 py-2.5 text-left font-semibold hidden md:table-cell">UID</th>
+                  <th className="px-5 py-2.5 text-right font-semibold w-48">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ACTIONS.map((action, idx) => {
+                  const uid = getCardUid(action.id);
+                  const isRegistering = registeringId === action.id;
+                  return (
+                    <tr
+                      key={action.id}
+                      className={`border-t border-slate-100 transition ${isRegistering ? "bg-amber-50" : "hover:bg-slate-50/60"}`}
+                    >
+                      <td className="px-5 py-3 text-slate-400 font-mono text-xs">{idx + 1}</td>
+                      <td className="px-2 py-3">
+                        <div className="flex items-center gap-3">
+                          <span className={`inline-flex items-center justify-center w-10 h-10 rounded-lg ${action.iconBg} ${action.accent} text-2xl font-bold`}>
+                            {action.icon}
+                          </span>
+                          <div>
+                            <div className={`font-semibold ${action.accent}`}>{t(action.labelKey)}</div>
+                            <div className="text-[11px] text-slate-400 uppercase tracking-wide">{action.category}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-2 py-3 hidden md:table-cell">
+                        {uid ? (
+                          <div className="flex items-center gap-1.5">
+                            <IconCheck className="w-3.5 h-3.5 text-emerald-500" />
+                            <code className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{uid}</code>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        {isRegistering ? (
+                          <button
+                            onClick={handleCancel}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 text-slate-700 hover:bg-slate-300 transition inline-flex items-center gap-1.5"
+                          >
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            {t("cancel")}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleRegister(action)}
+                            disabled={!readerConnected || registeringId !== null}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                              uid
+                                ? "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                                : "bg-slate-900 text-white hover:bg-slate-700"
+                            }`}
+                          >
+                            {uid ? t("reRegister") : t("tapToRegister")}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
+      )}
     </div>
   );
 }
