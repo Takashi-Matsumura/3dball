@@ -491,18 +491,21 @@ export default function Ball() {
         }
         return;
       }
-      // Tab → generate challenge (hasChallenge) or new map (!hasChallenge)
-      if ((e.key === "Tab" || e.key === "Delete") && level.active && !level.cleared && !progMode) {
-        e.preventDefault();
+      // Tab → generate challenge (hasChallenge) or new map (!hasChallenge, non-prog mode only)
+      if ((e.key === "Tab" || e.key === "Delete") && level.active && !level.cleared) {
         if (level.config?.hasChallenge) {
+          e.preventDefault();
           const pos = level.newChallenge();
           setGridPos(pos);
           setIsAnimating(false);
-        } else {
+          return;
+        }
+        if (!progMode) {
+          e.preventDefault();
           const pos = level.generate();
           setGridPos(pos);
+          return;
         }
-        return;
       }
       // Space → next challenge when level cleared (non-prog mode)
       if ((e.key === " " || e.code === "Space" || e.key === "Clear") && level.cleared && !progMode) {
